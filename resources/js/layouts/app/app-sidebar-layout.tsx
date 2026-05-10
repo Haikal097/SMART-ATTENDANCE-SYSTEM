@@ -1,17 +1,39 @@
-import { AppContent } from '@/components/app-content';
-import { AppShell } from '@/components/app-shell';
+import { usePage } from '@inertiajs/react';
 import { AppSidebar } from '@/components/app-sidebar';
-import { AppSidebarHeader } from '@/components/app-sidebar-header';
+import { StudentSidebar } from '@/components/student-sidebar';
+import { LecturerSidebar } from '@/components/lecturer-sidebar';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { type BreadcrumbItem } from '@/types';
 
-export default function AppSidebarLayout({ children, breadcrumbs = [] }: { children: React.ReactNode; breadcrumbs?: BreadcrumbItem[] }) {
+interface AppLayoutTemplateProps {
+    children: React.ReactNode;
+    breadcrumbs?: BreadcrumbItem[];
+}
+
+export default function AppLayoutTemplate({ children }: AppLayoutTemplateProps) {
+    const { auth } = usePage<{ auth: { user: { role: string } } }>().props;
+    
+    const role = auth.user?.role || 'student';
+
+    const renderSidebar = () => {
+        switch (role) {
+            case 'admin':
+                return <AppSidebar />;
+            case 'lecturer':
+                return <LecturerSidebar />;
+            case 'student':
+                return <StudentSidebar />;
+            default:
+                return <StudentSidebar />;
+        }
+    };
+
     return (
-        <AppShell variant="sidebar">
-            <AppSidebar />
-            <AppContent variant="sidebar">
-                <AppSidebarHeader breadcrumbs={breadcrumbs} />
+        <SidebarProvider>
+            {renderSidebar()}
+            <main className="flex-1 overflow-auto">
                 {children}
-            </AppContent>
-        </AppShell>
+            </main>
+        </SidebarProvider>
     );
 }

@@ -21,6 +21,10 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role', 
+        'face_image_path',
+        'face_image_url',
+        'face_status',
     ];
 
     /**
@@ -44,5 +48,22 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_lecturer', 'user_id', 'subject_id')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    public function isLecturer(): bool
+    {
+        return $this->role === 'lecturer';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
     }
 }

@@ -6,109 +6,79 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import { 
   LayoutGrid, 
-  Users, 
   CalendarCheck, 
   Clock,
-  BarChart3,
-  Camera,
-  Cpu,
-  ScanFace,
   School,
   BookOpen,
-  UserCog,
-  Settings,
-  Folder,
-  FileText
+  User,
+  Camera,
+  HelpCircle
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
   {
     title: 'Dashboard',
-    url: '/dashboard',
+    url: '/student/dashboard',
     icon: LayoutGrid,
   },
 ];
 
 const attendanceNavItems: NavItem[] = [
   {
-    title: 'Students',
-    url: '/students',
-    icon: Users,
-  },
-  {
-    title: 'Attendance Records',
-    url: '/attendance',
+    title: 'My Attendance',
+    url: '/student/attendance',
     icon: CalendarCheck,
   },
   {
-    title: 'Today\'s Activity',
-    url: '/attendance/today',
+    title: 'Today\'s Status',
+    url: '/student/attendance/today',
     icon: Clock,
-  },
-  {
-    title: 'Reports & Analytics',
-    url: '/reports',
-    icon: BarChart3,
-  },
-];
-
-const systemNavItems: NavItem[] = [
-  {
-    title: 'Live Camera',
-    url: '/camera',
-    icon: Camera,
-  },
-  {
-    title: 'Raspberry Pi',
-    url: '/system/pi-status',
-    icon: Cpu,
-  },
-  {
-    title: 'Face Approvals',
-    url: '/system/face-approvals',
-    icon: ScanFace,
   },
 ];
 
 const academicNavItems: NavItem[] = [
   {
-    title: 'Classes',
-    url: '/classes',
+    title: 'My Classes',
+    url: '/student/classes',
     icon: School,
   },
   {
-    title: 'Subjects',
-    url: '/subjects',
+    title: 'Courses',
+    url: '/student/courses',
     icon: BookOpen,
   },
 ];
 
-const adminNavItems: NavItem[] = [
+const accountNavItems: NavItem[] = [
   {
-    title: 'Faculty',
-    url: '/faculty',
-    icon: UserCog,
+    title: 'My Profile',
+    url: '/settings/profile',
+    icon: User,
   },
   {
-    title: 'Settings',
-    url: '/settings',
-    icon: Settings,
+    title: 'Face Registration',
+    url: '/settings/profile',
+    icon: Camera,
   },
 ];
 
 const footerNavItems: NavItem[] = [
-    
+  {
+    title: 'Help & Support',
+    url: '/help',
+    icon: HelpCircle,
+  },
 ];
 
-export function AppSidebar() {
+export function StudentSidebar() {
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard" prefetch>
+              <Link href="/student/dashboard" prefetch>
                 <AppLogo />
               </Link>
             </SidebarMenuButton>
@@ -117,12 +87,10 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Main Section */}
         <div className="px-2 py-2">
           <NavMain items={mainNavItems} />
         </div>
 
-        {/* Attendance Section */}
         <div className="px-3 py-2">
           <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
             Attendance
@@ -130,15 +98,6 @@ export function AppSidebar() {
           <NavMain items={attendanceNavItems} />
         </div>
 
-        {/* System Section */}
-        <div className="px-3 py-2">
-          <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            System
-          </p>
-          <NavMain items={systemNavItems} />
-        </div>
-
-        {/* Academic Section */}
         <div className="px-3 py-2">
           <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
             Academic
@@ -146,12 +105,11 @@ export function AppSidebar() {
           <NavMain items={academicNavItems} />
         </div>
 
-        {/* Admin Section */}
         <div className="px-3 py-2">
           <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            Admin
+            Account
           </p>
-          <NavMain items={adminNavItems} />
+          <NavMain items={accountNavItems} />
         </div>
       </SidebarContent>
 

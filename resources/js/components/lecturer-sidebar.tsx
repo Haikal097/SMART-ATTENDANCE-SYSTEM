@@ -10,14 +10,8 @@ import {
   CalendarCheck, 
   Clock,
   BarChart3,
-  Camera,
-  Cpu,
-  ScanFace,
   School,
   BookOpen,
-  UserCog,
-  Settings,
-  Folder,
   FileText
 } from 'lucide-react';
 import AppLogo from './app-logo';
@@ -25,90 +19,63 @@ import AppLogo from './app-logo';
 const mainNavItems: NavItem[] = [
   {
     title: 'Dashboard',
-    url: '/dashboard',
+    url: '/lecturer/dashboard',
     icon: LayoutGrid,
   },
 ];
 
 const attendanceNavItems: NavItem[] = [
   {
-    title: 'Students',
-    url: '/students',
+    title: 'My Students',
+    url: '/lecturer/students',
     icon: Users,
   },
   {
     title: 'Attendance Records',
-    url: '/attendance',
+    url: '/lecturer/attendance',
     icon: CalendarCheck,
   },
   {
-    title: 'Today\'s Activity',
-    url: '/attendance/today',
+    title: 'Today\'s Log',
+    url: '/lecturer/attendance/today',
     icon: Clock,
   },
   {
-    title: 'Reports & Analytics',
-    url: '/reports',
+    title: 'Reports',
+    url: '/lecturer/reports',
     icon: BarChart3,
-  },
-];
-
-const systemNavItems: NavItem[] = [
-  {
-    title: 'Live Camera',
-    url: '/camera',
-    icon: Camera,
-  },
-  {
-    title: 'Raspberry Pi',
-    url: '/system/pi-status',
-    icon: Cpu,
-  },
-  {
-    title: 'Face Approvals',
-    url: '/system/face-approvals',
-    icon: ScanFace,
   },
 ];
 
 const academicNavItems: NavItem[] = [
   {
-    title: 'Classes',
-    url: '/classes',
+    title: 'My Classes',
+    url: '/lecturer/classes',
     icon: School,
   },
   {
-    title: 'Subjects',
-    url: '/subjects',
+    title: 'Courses',
+    url: '/lecturer/courses',
     icon: BookOpen,
   },
 ];
 
-const adminNavItems: NavItem[] = [
-  {
-    title: 'Faculty',
-    url: '/faculty',
-    icon: UserCog,
-  },
-  {
-    title: 'Settings',
-    url: '/settings',
-    icon: Settings,
-  },
-];
-
 const footerNavItems: NavItem[] = [
-    
+  {
+    title: 'Documentation',
+    url: '/docs',
+    icon: FileText,
+  },
 ];
 
-export function AppSidebar() {
+export function LecturerSidebar() {
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard" prefetch>
+              <Link href="/lecturer/dashboard" prefetch>
                 <AppLogo />
               </Link>
             </SidebarMenuButton>
@@ -117,12 +84,10 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Main Section */}
         <div className="px-2 py-2">
           <NavMain items={mainNavItems} />
         </div>
 
-        {/* Attendance Section */}
         <div className="px-3 py-2">
           <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
             Attendance
@@ -130,28 +95,11 @@ export function AppSidebar() {
           <NavMain items={attendanceNavItems} />
         </div>
 
-        {/* System Section */}
-        <div className="px-3 py-2">
-          <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            System
-          </p>
-          <NavMain items={systemNavItems} />
-        </div>
-
-        {/* Academic Section */}
         <div className="px-3 py-2">
           <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
             Academic
           </p>
           <NavMain items={academicNavItems} />
-        </div>
-
-        {/* Admin Section */}
-        <div className="px-3 py-2">
-          <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            Admin
-          </p>
-          <NavMain items={adminNavItems} />
         </div>
       </SidebarContent>
 
