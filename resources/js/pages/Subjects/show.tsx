@@ -6,7 +6,7 @@ import { type BreadcrumbItem } from '@/types';
 import {
     BookOpen, Users, Clock, BarChart3, Plus, Edit,
     ChevronLeft, Trash2, AlertTriangle, X, CheckCircle,
-    Calendar, MapPin, UserMinus, UserPlus, Search,
+    Calendar, MapPin, UserMinus, UserPlus, Search, CalendarDays
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -29,10 +29,14 @@ interface Student {
 interface Session {
     id: number;
     date: string;
+    start_block: number;
+    end_block: number;
     start_time: string;
     end_time: string;
     room: string | null;
     status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+    is_holiday: boolean;
+    holiday_action: string | null;
     present: number;
     total: number;
 }
@@ -250,7 +254,9 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                         <Link href={`/subjects/${subject.id}/edit`} className="sh-btn-ghost"><Edit size={13} />Edit</Link>
-                        <Link href={`/subjects/${subject.id}/sessions/create`} className="sh-btn-primary"><Plus size={13} />New session</Link>
+                        <Link href={`/subjects/${subject.id}/schedules`} className="sh-btn-primary">
+                            <CalendarDays size={13} />Manage timetable
+                        </Link>
                     </div>
                 </div>
 
@@ -393,11 +399,18 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                     <div className="sh-card" style={{ overflow: 'hidden' }}>
                         <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <p style={{ fontSize: 13, color: '#6B7280', margin: 0 }}>
-                                {subject.sessions.length} session{subject.sessions.length !== 1 ? 's' : ''} — most recent first
+                                {subject.sessions.length} session{subject.sessions.length !== 1 ? 's' : ''}
+                                {subject.sessions.length > 0 && (
+                                    <span style={{ color: '#D1D5DB', margin: '0 6px' }}>·</span>
+                                )}
+                                {subject.sessions.length > 0 && (
+                                    <span>
+                                        {new Date(subject.sessions[subject.sessions.length - 1].date + 'T00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                                        {' – '}
+                                        {new Date(subject.sessions[0].date + 'T00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </span>
+                                )}
                             </p>
-                            <Link href={`/subjects/${subject.id}/sessions/create`} className="sh-btn-primary">
-                                <Plus size={13} />New session
-                            </Link>
                         </div>
 
                         <table className="sh-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -418,8 +431,8 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                             <Calendar size={36} style={{ color: '#E5E7EB', margin: '0 auto 12px', display: 'block' }} />
                                             <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: 0 }}>No sessions yet</p>
                                             <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4, marginBottom: 12 }}>Create the first session for this subject</p>
-                                            <Link href={`/subjects/${subject.id}/sessions/create`} className="sh-btn-primary" style={{ display: 'inline-flex' }}>
-                                                <Plus size={13} />New session
+                                            <Link href={`/subjects/${subject.id}/schedules`} className="sh-btn-primary" style={{ display: 'inline-flex' }}>
+                                                <CalendarDays size={13} />Set up timetable
                                             </Link>
                                         </td>
                                     </tr>
@@ -434,6 +447,11 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                                     <span style={{ fontWeight: 500 }}>
                                                         {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </span>
+                                                    {session.is_holiday && (
+                                                        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+                                                            Holiday
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td style={{ fontSize: 12, color: '#6B7280', fontFamily: 'monospace' }}>
@@ -468,7 +486,7 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                                         <CheckCircle size={12} />Attendance
                                                     </Link>
                                                     <Link href={`/subjects/${subject.id}/sessions/${session.id}/edit`}
-                                                        style={{ height: 30, padding: '0 10px', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 7, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+                                                        style={{ height: 30, padding: '0 10px', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 7, display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
                                                         <Edit size={12} />
                                                     </Link>
                                                 </div>

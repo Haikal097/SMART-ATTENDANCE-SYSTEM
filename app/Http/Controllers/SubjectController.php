@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Subject;
 use App\Models\User;
-use App\Models\Student; 
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -53,14 +53,16 @@ class SubjectController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'code'         => 'required|string|unique:subjects,code|max:20',
-            'name'         => 'required|string|max:255',
-            'description'  => 'nullable|string',
-            'credit_hours' => 'required|integer|min:1|max:10',
-            'status'       => 'required|in:active,inactive',
-            'lecturers'    => 'nullable|array',
+            'code'                => 'required|string|unique:subjects,code|max:20',
+            'name'                => 'required|string|max:255',
+            'description'         => 'nullable|string',
+            'credit_hours'        => 'required|integer|min:1|max:10',
+            'status'              => 'required|in:active,inactive',
+            'start_date'          => 'nullable|date',
+            'end_date'            => 'nullable|date|after_or_equal:start_date',
+            'lecturers'           => 'nullable|array',
             'lecturers.*.user_id' => 'required|exists:users,id',
-            'lecturers.*.role'    => 'required|in:lecturer,co-lecturer',
+            'lecturers.*.role'    => 'required|in:lecturer',
         ]);
 
         $subject = Subject::create([
@@ -69,9 +71,10 @@ class SubjectController extends Controller
             'description'  => $validated['description'] ?? null,
             'credit_hours' => $validated['credit_hours'],
             'status'       => $validated['status'],
+            'start_date'   => $validated['start_date'] ?? null,
+            'end_date'     => $validated['end_date']   ?? null,
         ]);
 
-        // Attach lecturers
         if (!empty($validated['lecturers'])) {
             $lecturers = collect($validated['lecturers'])
                 ->filter(fn($l) => !empty($l['user_id']))
@@ -94,7 +97,7 @@ class SubjectController extends Controller
                 'attendances as total_count',
             ])->orderBy('date', 'desc'),
         ]);
-    
+
         return Inertia::render('Subjects/show', [
             'subject' => [
                 'id'           => $subject->id,
@@ -118,14 +121,18 @@ class SubjectController extends Controller
                     'pivot'      => ['enrolled_at' => $s->pivot->enrolled_at],
                 ]),
                 'sessions' => $subject->sessions->map(fn($s) => [
-                    'id'         => $s->id,
-                    'date'       => $s->date->format('Y-m-d'),
-                    'start_time' => $s->start_time,
-                    'end_time'   => $s->end_time,
-                    'room'       => $s->room,
-                    'status'     => $s->status,
-                    'present'    => $s->present_count ?? 0,
-                    'total'      => $s->total_count ?? 0,
+                    'id'             => $s->id,
+                    'date'           => $s->date->format('Y-m-d'),
+                    'start_block'    => $s->start_block,
+                    'end_block'      => $s->end_block,
+                    'start_time'     => \App\Models\Session::BLOCKS[$s->start_block]['start'],
+                    'end_time'       => \App\Models\Session::BLOCKS[$s->end_block]['end'],
+                    'room'           => $s->room,
+                    'status'         => $s->status,
+                    'is_holiday'     => $s->is_holiday,
+                    'holiday_action' => $s->holiday_action,
+                    'present'        => $s->present_count ?? 0,
+                    'total'          => $s->total_count   ?? 0,
                 ]),
                 'stats' => [
                     'totalStudents' => $subject->students->count(),
@@ -133,8 +140,6 @@ class SubjectController extends Controller
                     'avgAttendance' => $this->calcAvgAttendance($subject),
                 ],
             ],
-    
-            // Students NOT yet enrolled in this subject (for the enroll modal)
             'availableStudents' => Student::whereNotIn('id', $subject->students->pluck('id'))
                 ->select('id', 'name', 'student_id', 'email')
                 ->orderBy('name')
@@ -142,33 +147,11 @@ class SubjectController extends Controller
         ]);
     }
 
-    public function enroll(Request $request, Subject $subject)
-    {
-        $request->validate([
-            'student_ids'   => 'required|array|min:1',
-            'student_ids.*' => 'exists:students,id',
-        ]);
-    
-        // Attach with enrolled_at date, ignore duplicates
-        $syncData = collect($request->student_ids)
-            ->mapWithKeys(fn($id) => [$id => ['enrolled_at' => now()->toDateString()]]);
-    
-        $subject->students()->syncWithoutDetaching($syncData);
-    
-        return back()->with('success', count($request->student_ids) . ' student(s) enrolled.');
-    }
-    
-    public function unenroll(Subject $subject, Student $student)
-    {
-        $subject->students()->detach($student->id);
-        return back()->with('success', "{$student->name} removed from subject.");
-    }
-
     public function edit(Subject $subject)
     {
         $subject->load('lecturers:id,name,email');
 
-        return Inertia::render('Subjects/create', [  // reuse same form component
+        return Inertia::render('Subjects/create', [
             'subject' => [
                 'id'           => $subject->id,
                 'code'         => $subject->code,
@@ -176,6 +159,8 @@ class SubjectController extends Controller
                 'description'  => $subject->description ?? '',
                 'credit_hours' => $subject->credit_hours,
                 'status'       => $subject->status,
+                'start_date'   => $subject->start_date?->format('Y-m-d') ?? '',  // ← fixed
+                'end_date'     => $subject->end_date?->format('Y-m-d')   ?? '',  // ← fixed
                 'lecturers'    => $subject->lecturers->map(fn($l) => [
                     'id'    => $l->id,
                     'pivot' => ['role' => $l->pivot->role],
@@ -191,14 +176,16 @@ class SubjectController extends Controller
     public function update(Request $request, Subject $subject)
     {
         $validated = $request->validate([
-            'code'         => 'required|string|max:20|unique:subjects,code,' . $subject->id,
-            'name'         => 'required|string|max:255',
-            'description'  => 'nullable|string',
-            'credit_hours' => 'required|integer|min:1|max:10',
-            'status'       => 'required|in:active,inactive',
-            'lecturers'    => 'nullable|array',
+            'code'                => 'required|string|max:20|unique:subjects,code,' . $subject->id,
+            'name'                => 'required|string|max:255',
+            'description'         => 'nullable|string',
+            'credit_hours'        => 'required|integer|min:1|max:10',
+            'status'              => 'required|in:active,inactive',
+            'start_date'          => 'nullable|date',
+            'end_date'            => 'nullable|date|after_or_equal:start_date',
+            'lecturers'           => 'nullable|array',
             'lecturers.*.user_id' => 'required|exists:users,id',
-            'lecturers.*.role'    => 'required|in:lecturer,co-lecturer',
+            'lecturers.*.role'    => 'required|in:lecturer',
         ]);
 
         $subject->update([
@@ -207,9 +194,10 @@ class SubjectController extends Controller
             'description'  => $validated['description'] ?? null,
             'credit_hours' => $validated['credit_hours'],
             'status'       => $validated['status'],
+            'start_date'   => $validated['start_date'] ?? null,  // ← fixed
+            'end_date'     => $validated['end_date']   ?? null,  // ← fixed
         ]);
 
-        // Sync lecturers
         $lecturers = collect($validated['lecturers'] ?? [])
             ->filter(fn($l) => !empty($l['user_id']))
             ->mapWithKeys(fn($l) => [$l['user_id'] => ['role' => $l['role']]]);
@@ -224,6 +212,27 @@ class SubjectController extends Controller
     {
         $subject->delete();
         return back()->with('success', 'Subject deleted.');
+    }
+
+    public function enroll(Request $request, Subject $subject)
+    {
+        $request->validate([
+            'student_ids'   => 'required|array|min:1',
+            'student_ids.*' => 'exists:students,id',
+        ]);
+
+        $syncData = collect($request->student_ids)
+            ->mapWithKeys(fn($id) => [$id => ['enrolled_at' => now()->toDateString()]]);
+
+        $subject->students()->syncWithoutDetaching($syncData);
+
+        return back()->with('success', count($request->student_ids) . ' student(s) enrolled.');
+    }
+
+    public function unenroll(Subject $subject, Student $student)
+    {
+        $subject->students()->detach($student->id);
+        return back()->with('success', "{$student->name} removed from subject.");
     }
 
     private function calcAvgAttendance(Subject $subject): float

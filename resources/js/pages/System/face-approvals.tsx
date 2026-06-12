@@ -1,6 +1,6 @@
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { type CSSProperties, type ReactNode, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import {
     ScanFace,
@@ -8,8 +8,6 @@ import {
     X,
     Clock,
     Search,
-    Filter,
-    ChevronDown,
     User,
     Eye,
     AlertTriangle,
@@ -25,7 +23,9 @@ interface FaceApproval {
     name: string;
     email: string;
     role: string;
-    face_image_url: string;
+    face_frontal_url: string;
+    face_left_url: string | null;
+    face_right_url: string | null;
     submitted_at: string;
     status: ApprovalStatus;
     rejection_reason?: string;
@@ -63,7 +63,7 @@ const s = {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-    } as React.CSSProperties,
+    } as CSSProperties,
 
     btnGhost: {
         height: 34,
@@ -79,7 +79,7 @@ const s = {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-    } as React.CSSProperties,
+    } as CSSProperties,
 
     btnApprove: {
         height: 32,
@@ -96,7 +96,7 @@ const s = {
         alignItems: 'center',
         gap: 5,
         transition: 'all 0.15s',
-    } as React.CSSProperties,
+    } as CSSProperties,
 
     btnReject: {
         height: 32,
@@ -113,7 +113,7 @@ const s = {
         alignItems: 'center',
         gap: 5,
         transition: 'all 0.15s',
-    } as React.CSSProperties,
+    } as CSSProperties,
 };
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ function StatusBadge({ status }: { status: ApprovalStatus }) {
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({ val, label, color, bg, icon }: { val: number; label: string; color: string; bg: string; icon: React.ReactNode }) {
+function StatCard({ val, label, color, bg, icon }: { val: number; label: string; color: string; bg: string; icon: ReactNode }) {
     return (
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
             <div style={{ width: 44, height: 44, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -148,20 +148,38 @@ function StatCard({ val, label, color, bg, icon }: { val: number; label: string;
 }
 
 // ─── Image preview modal ──────────────────────────────────────────────────────
-function ImageModal({ approval, onClose }: { approval: FaceApproval; onClose: () => void }) {
+function ImageModal({
+    approval,
+    onClose,
+    onApprove,
+    onReject,
+    processing,
+}: {
+    approval: FaceApproval;
+    onClose: () => void;
+    onApprove: () => void;
+    onReject: () => void;
+    processing: boolean;
+}) {
+    const photos: Array<{ label: string; url: string | null }> = [
+        { label: 'Frontal',    url: approval.face_frontal_url },
+        { label: 'Left side',  url: approval.face_left_url   },
+        { label: 'Right side', url: approval.face_right_url  },
+    ];
+
     return (
         <div
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+                style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', maxWidth: 680, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.35)' }}
             >
-                {/* Modal header */}
+                {/* Header */}
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#E6F1FB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#185FA5' }}>
+                        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#E6F1FB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#185FA5' }}>
                             {approval.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
                         </div>
                         <div>
@@ -169,26 +187,51 @@ function ImageModal({ approval, onClose }: { approval: FaceApproval; onClose: ()
                             <p style={{ fontSize: 12, color: '#6B7280', margin: 0, fontFamily: 'monospace' }}>{approval.email}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 4, borderRadius: 6 }}>
-                        <X size={18} />
-                    </button>
-                </div>
-
-                {/* Image */}
-                <div style={{ background: '#F9FAFB', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                    <img
-                        src={approval.face_image_url}
-                        alt={`${approval.name} face photo`}
-                        style={{ maxWidth: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 10, border: '1px solid #E5E7EB' }}
-                    />
-                </div>
-
-                {/* Meta */}
-                <div style={{ padding: '14px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontSize: 12, color: '#6B7280' }}>
-                        Submitted {approval.submitted_at}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <StatusBadge status={approval.status} />
+                        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 4, borderRadius: 6 }}>
+                            <X size={18} />
+                        </button>
                     </div>
-                    <StatusBadge status={approval.status} />
+                </div>
+
+                {/* 3 photos */}
+                <div style={{ background: '#F9FAFB', padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    {photos.map(({ label, url }) => (
+                        <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #E5E7EB', aspectRatio: '3/4', background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {url
+                                    ? <img src={url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                    : <ScanFace size={28} color="#9CA3AF" />
+                                }
+                            </div>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>{label}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Footer: meta + actions */}
+                <div style={{ padding: '14px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: '#9CA3AF' }}>Submitted {approval.submitted_at}</span>
+
+                    {approval.status === 'pending' && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                onClick={onReject}
+                                disabled={processing}
+                                style={{ ...s.btnReject, height: 34, padding: '0 16px', fontSize: 13, opacity: processing ? 0.5 : 1 }}
+                            >
+                                <X size={13} /> Reject
+                            </button>
+                            <button
+                                onClick={onApprove}
+                                disabled={processing}
+                                style={{ ...s.btnApprove, height: 34, padding: '0 16px', fontSize: 13, opacity: processing ? 0.5 : 1 }}
+                            >
+                                <CheckCircle size={13} /> Approve
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -285,6 +328,7 @@ export default function FaceApprovals({ approvals = [], stats = { pending: 0, ap
     const handleReject = (approval: FaceApproval, reason: string) => {
         setProcessing(approval.id);
         setRejectItem(null);
+        setPreviewItem(null);
         router.post(`/system/face-approvals/${approval.id}/reject`, { reason }, {
             preserveScroll: true,
             onFinish: () => setProcessing(null),
@@ -435,9 +479,9 @@ export default function FaceApprovals({ approvals = [], stats = { pending: 0, ap
                                     <div
                                         onClick={() => setPreviewItem(approval)}
                                         style={{ width: 44, height: 44, borderRadius: 8, overflow: 'hidden', border: '1px solid #E5E7EB', cursor: 'pointer', flexShrink: 0, position: 'relative', background: '#F3F4F6' }}
-                                        title="Click to preview"
+                                        title="Click to view all photos"
                                     >
-                                        <img src={approval.face_image_url} alt={approval.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <img src={approval.face_frontal_url} alt={approval.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
                                             onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.35)'; (e.currentTarget.querySelector('svg') as SVGElement | null)!.style.opacity = '1'; }}
                                             onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0)'; (e.currentTarget.querySelector('svg') as SVGElement | null)!.style.opacity = '0'; }}
@@ -513,7 +557,13 @@ export default function FaceApprovals({ approvals = [], stats = { pending: 0, ap
 
             {/* ── Modals ── */}
             {previewItem && (
-                <ImageModal approval={previewItem} onClose={() => setPreviewItem(null)} />
+                <ImageModal
+                    approval={previewItem}
+                    onClose={() => setPreviewItem(null)}
+                    onApprove={() => { handleApprove(previewItem); setPreviewItem(null); }}
+                    onReject={() => { setRejectItem(previewItem); setPreviewItem(null); }}
+                    processing={processing === previewItem.id}
+                />
             )}
             {rejectItem && (
                 <RejectModal

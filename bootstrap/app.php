@@ -9,6 +9,7 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 return Application::Configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -24,6 +25,10 @@ return Application::Configure(basePath: dirname(__DIR__))
             'media',           // Add this for media upload
             'media/*',         // Add this for media delete/bulk operations
             'profile/upload-face',
+        ]);
+        
+        $middleware->alias([
+            'api.pi' => \App\Http\Middleware\PiTokenMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

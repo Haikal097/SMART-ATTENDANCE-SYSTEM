@@ -37,6 +37,9 @@ export interface User {
     created_at: string;
     updated_at: string;
     face_image_url?: string | null;
-    face_status?: string;     
-    [key: string]: unknown; // This allows for additional properties...
+    face_left_url?: string | null;
+    face_right_url?: string | null;
+    face_status?: string;
+    face_rejection_reason?: string | null;
+    [key: string]: unknown;
 }

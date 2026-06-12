@@ -36,6 +36,7 @@ interface Student {
     enrollmentDate: string;
     status: 'active' | 'inactive' | 'graduated';
     attendanceRate: number;
+    totalSessions: number;
     faceRegistered: boolean;
 }
 
@@ -509,19 +510,26 @@ export default function StudentsIndex({ students, filters = {}, classes = [], st
 
                                                 {/* Attendance */}
                                                 <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <div style={{ width: 52, height: 4, background: '#F3F4F6', borderRadius: 2, overflow: 'hidden' }}>
-                                                            <div style={{
-                                                                width: `${student.attendanceRate}%`,
-                                                                height: '100%',
-                                                                background: student.attendanceRate >= 90 ? '#059669' : student.attendanceRate >= 75 ? '#D97706' : '#DC2626',
-                                                                borderRadius: 2,
-                                                            }} />
+                                                    {student.totalSessions === 0 ? (
+                                                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>No records</span>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div style={{ width: 52, height: 4, background: '#F3F4F6', borderRadius: 2, overflow: 'hidden' }}>
+                                                                    <div style={{
+                                                                        width: `${student.attendanceRate}%`,
+                                                                        height: '100%',
+                                                                        background: student.attendanceRate >= 80 ? '#059669' : student.attendanceRate >= 60 ? '#D97706' : '#DC2626',
+                                                                        borderRadius: 2,
+                                                                    }} />
+                                                                </div>
+                                                                <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: student.attendanceRate >= 80 ? '#059669' : student.attendanceRate >= 60 ? '#D97706' : '#DC2626', fontWeight: 600 }}>
+                                                                    {student.attendanceRate}%
+                                                                </span>
+                                                            </div>
+                                                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>{student.totalSessions} sessions</span>
                                                         </div>
-                                                        <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: '#6B7280' }}>
-                                                            {student.attendanceRate ?? 0}%
-                                                        </span>
-                                                    </div>
+                                                    )}
                                                 </td>
 
                                                 {/* Status */}

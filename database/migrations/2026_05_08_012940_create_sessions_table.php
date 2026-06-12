@@ -12,8 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('subject_id')->constrained()->cascadeOnDelete();
             $table->date('date');
-            $table->time('start_time');
-            $table->time('end_time');
+            $table->unsignedTinyInteger('start_block');
+            $table->unsignedTinyInteger('end_block');
             $table->string('room')->nullable();
             $table->enum('status', ['scheduled', 'ongoing', 'completed', 'cancelled'])
                 ->default('scheduled');

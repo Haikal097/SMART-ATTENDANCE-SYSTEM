@@ -19,6 +19,8 @@ interface Subject {
     description: string;
     credit_hours: number;
     status: 'active' | 'inactive';
+    start_date: string;
+    end_date: string;
     lecturers?: { id: number; pivot: { role: string } }[];
 }
 
@@ -41,6 +43,8 @@ export default function SubjectForm({ subject, lecturers }: Props) {
         description:  subject?.description  ?? '',
         credit_hours: subject?.credit_hours ?? 3,
         status:       subject?.status       ?? 'active',
+        start_date:   subject?.start_date   ?? '',
+        end_date:     subject?.end_date     ?? '',
         lecturers: subject?.lecturers?.map((l) => ({
             user_id: l.id,
             role: l.pivot.role,
@@ -143,6 +147,29 @@ export default function SubjectForm({ subject, lecturers }: Props) {
                                     <input className="sf-input" type="number" min="1" max="10" value={data.credit_hours} onChange={(e) => setData('credit_hours', Number(e.target.value))} required />
                                     {errors.credit_hours && <p className="sf-error">{errors.credit_hours}</p>}
                                 </div>
+                                {/* Semester dates */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+                                    <div>
+                                        <label className="sf-label">Semester start date</label>
+                                        <input
+                                            type="date"
+                                            className="sf-input"
+                                            value={data.start_date}
+                                            onChange={(e) => setData('start_date', e.target.value)}
+                                        />
+                                        {errors.start_date && <p className="sf-error">{errors.start_date}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="sf-label">Semester end date</label>
+                                        <input
+                                            type="date"
+                                            className="sf-input"
+                                            value={data.end_date}
+                                            onChange={(e) => setData('end_date', e.target.value)}
+                                        />
+                                        {errors.end_date && <p className="sf-error">{errors.end_date}</p>}
+                                    </div>
+                                </div>
                                 <div>
                                     <label className="sf-label">Status</label>
                                     <select className="sf-select" value={data.status} onChange={(e) => setData('status', e.target.value as 'active' | 'inactive')}>
@@ -197,7 +224,6 @@ export default function SubjectForm({ subject, lecturers }: Props) {
                                                     onChange={(e) => updateLecturer(index, 'role', e.target.value)}
                                                 >
                                                     <option value="lecturer">Lecturer</option>
-                                                    <option value="co-lecturer">Co-lecturer</option>
                                                 </select>
                                             </div>
                                             <button type="button" onClick={() => removeLecturer(index)} style={{ marginTop: 20, width: 32, height: 32, background: '#FEE2E2', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

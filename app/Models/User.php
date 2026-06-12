@@ -21,11 +21,26 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role', 
+        'role',
         'face_image_path',
         'face_image_url',
+        'face_left_path',
+        'face_right_path',
         'face_status',
+        'face_rejection_reason',
     ];
+
+    protected $appends = ['face_left_url', 'face_right_url'];
+
+    public function getFaceLeftUrlAttribute(): ?string
+    {
+        return $this->face_left_path ? asset('storage/' . $this->face_left_path) : null;
+    }
+
+    public function getFaceRightUrlAttribute(): ?string
+    {
+        return $this->face_right_path ? asset('storage/' . $this->face_right_path) : null;
+    }
 
     /**
      * The attributes that should be hidden for serialization.

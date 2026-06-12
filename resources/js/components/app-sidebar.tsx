@@ -4,10 +4,10 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { 
-  LayoutGrid, 
-  Users, 
-  CalendarCheck, 
+import {
+  LayoutGrid,
+  Users,
+  CalendarCheck,
   Clock,
   BarChart3,
   Camera,
@@ -15,10 +15,6 @@ import {
   ScanFace,
   School,
   BookOpen,
-  UserCog,
-  Settings,
-  Folder,
-  FileText
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -74,26 +70,13 @@ const systemNavItems: NavItem[] = [
 const academicNavItems: NavItem[] = [
   {
     title: 'Classes',
-    url: '/classes',
+    url: '/admin/classes',
     icon: School,
   },
   {
     title: 'Subjects',
     url: '/subjects',
     icon: BookOpen,
-  },
-];
-
-const adminNavItems: NavItem[] = [
-  {
-    title: 'Faculty',
-    url: '/faculty',
-    icon: UserCog,
-  },
-  {
-    title: 'Settings',
-    url: '/settings',
-    icon: Settings,
   },
 ];
 
@@ -146,13 +129,6 @@ export function AppSidebar() {
           <NavMain items={academicNavItems} />
         </div>
 
-        {/* Admin Section */}
-        <div className="px-3 py-2">
-          <p className="mb-2 px-2 text-xs font-medium tracking-wider text-neutral-500 uppercase dark:text-neutral-400">
-            Admin
-          </p>
-          <NavMain items={adminNavItems} />
-        </div>
       </SidebarContent>
 
       <SidebarFooter>

@@ -18,9 +18,50 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
+        // Try to find a linked student record by email
+        $student = \App\Models\Student::where('email', $user->email)->first();
+
+        $attendanceStat = null;
+        $recentActivity = [];
+
+        if ($student) {
+            $attendances = $student->attendances()
+                ->with(['session' => fn ($q) => $q->with('subject')])
+                ->orderByDesc('checked_in_at')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $total   = $attendances->count();
+            $present = $attendances->where('status', 'present')->count();
+            $late    = $attendances->where('status', 'late')->count();
+            $absent  = $attendances->where('status', 'absent')->count();
+
+            $attendanceStat = [
+                'total'   => $total,
+                'present' => $present,
+                'late'    => $late,
+                'absent'  => $absent,
+                'rate'    => $total > 0 ? round(($present + $late) / $total * 100, 1) : 0,
+            ];
+
+            $recentActivity = $attendances->take(10)->map(fn ($a) => [
+                'status'      => $a->status,
+                'subjectCode' => $a->session?->subject?->code ?? '—',
+                'subjectName' => $a->session?->subject?->name ?? 'Unknown Subject',
+                'room'        => $a->session?->room ?? '',
+                'time'        => $a->checked_in_at
+                    ? $a->checked_in_at->format('D, d M · H:i')
+                    : $a->created_at->format('D, d M'),
+            ])->values()->toArray();
+        }
+
         return Inertia::render('settings/profile', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => $request->session()->get('status'),
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
+            'status'          => session('status'),
+            'attendanceStat'  => $attendanceStat,
+            'recentActivity'  => $recentActivity,
         ]);
     }
 
