@@ -14,9 +14,28 @@ class Student extends Model
     ];
 
     // Relationship: Student belongs to a User
+    public function getFaceImageUrlAttribute(): ?string
+    {
+        $user = $this->user;
+        if ($user?->face_image_path) {
+            return asset('storage/' . $user->face_image_path);
+        }
+        return $user?->face_image_url ?? $this->attributes['face_image_url'] ?? null;
+    }
+
+    public function getFaceLeftPathAttribute(): ?string
+    {
+        return $this->user?->face_left_path;
+    }
+
+    public function getFaceRightPathAttribute(): ?string
+    {
+        return $this->user?->face_right_path;
+    }
+
     public function user()
     {
-        return $this->belongsTo(User::class, 'student_id', 'student_id');
+        return $this->belongsTo(User::class, 'email', 'email');
     }
 
     public function subjects()

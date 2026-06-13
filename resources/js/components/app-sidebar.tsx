@@ -10,7 +10,6 @@ import {
   CalendarCheck,
   Clock,
   BarChart3,
-  Camera,
   Cpu,
   ScanFace,
   School,
@@ -50,11 +49,6 @@ const attendanceNavItems: NavItem[] = [
 ];
 
 const systemNavItems: NavItem[] = [
-  {
-    title: 'Live Camera',
-    url: '/camera',
-    icon: Camera,
-  },
   {
     title: 'Raspberry Pi',
     url: '/system/pi-status',

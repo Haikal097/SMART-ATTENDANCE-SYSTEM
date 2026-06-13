@@ -5,7 +5,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 
 class StudentController extends Controller
@@ -101,9 +103,7 @@ class StudentController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Students/Create', [
-            'classes' => \App\Models\ClassRoom::select('id', 'name', 'code')->get()
-        ]);
+        return Inertia::render('Students/Create');
     }
 
     /**
@@ -112,18 +112,34 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'student_id' => 'required|string|unique:students',
-            'email' => 'required|email|unique:students',
-            'phone' => 'nullable|string',
-            'class_id' => 'nullable|exists:classes,id',
+            'name'            => 'required|string|max:255',
+            'student_id'      => 'required|string|unique:students',
+            'email'           => 'required|email|unique:students|unique:users',
+            'phone'           => 'nullable|string',
             'enrollment_date' => 'nullable|date',
+            'password'        => 'required|string|min:6',
         ]);
 
-        $student = Student::create($validated);
+        // Create login account
+        User::create([
+            'name'     => $validated['name'],
+            'email'    => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role'     => 'student',
+        ]);
+
+        // Create student record
+        Student::create([
+            'name'            => $validated['name'],
+            'student_id'      => $validated['student_id'],
+            'email'           => $validated['email'],
+            'phone'           => $validated['phone'] ?? null,
+            'enrollment_date' => $validated['enrollment_date'] ?? null,
+            'status'          => 'active',
+        ]);
 
         return redirect()->route('students.index')
-            ->with('success', 'Student created successfully.');
+            ->with('success', "Student {$validated['name']} created. They can log in with their email and the password you set.");
     }
 
     /**

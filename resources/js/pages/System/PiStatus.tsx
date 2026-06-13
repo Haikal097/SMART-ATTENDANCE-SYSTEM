@@ -222,6 +222,35 @@ export default function PiStatus({ todaySessions, piUrl, date }: Props) {
                     </div>
                 </div>
 
+                {/* Live camera feed */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+                        <Camera className="h-4 w-4 text-gray-500" />
+                        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Live Camera</h2>
+                        {piStatus?.online && (
+                            <span className="ml-auto flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 font-medium">
+                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                Live
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center justify-center bg-black" style={{ minHeight: 360 }}>
+                        {piStatus?.online ? (
+                            <img
+                                src={`${piUrl}/stream`}
+                                alt="Pi camera stream"
+                                className="w-full object-contain"
+                                style={{ maxHeight: 480 }}
+                            />
+                        ) : (
+                            <div className="text-center py-16">
+                                <CameraOff className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+                                <p className="text-gray-500 text-sm">Camera unavailable — Pi is offline</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Today's sessions table */}
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
                     <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
