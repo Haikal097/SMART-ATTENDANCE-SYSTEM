@@ -198,19 +198,6 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                             </button>
                         </form>
 
-                        {/* Divider */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
-                            <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
-                            <span style={{ fontSize: 12, color: '#9CA3AF' }}>or</span>
-                            <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
-                        </div>
-
-                        <p style={{ textAlign: 'center', fontSize: 13, color: '#6B7280', margin: 0 }}>
-                            Don't have an account?{' '}
-                            <Link href={route('register')} style={{ color: '#111827', fontWeight: 700, textDecoration: 'none' }}>
-                                Create one →
-                            </Link>
-                        </p>
                     </div>
                 </div>
             </div>

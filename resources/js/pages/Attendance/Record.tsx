@@ -231,7 +231,7 @@ export default function AttendanceRecord({ subject, session, students }: Props) 
     );
 
     const presentPct = students.length > 0
-        ? Math.round(((counts.present ?? 0) / students.length) * 100)
+        ? Math.round((((counts.present ?? 0) + (counts.late ?? 0)) / students.length) * 100)
         : 0;
 
     // Filtered list

@@ -1,10 +1,11 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { CalendarDays, Users, CheckCircle, Clock, ScanFace, UserCheck, AlertTriangle, Activity } from 'lucide-react';
+import { CalendarDays, Users, CheckCircle, Clock, ScanFace, UserCheck, Activity } from 'lucide-react';
 
 const POLL_MS = 8000;
+const PI_POLL_MS = 15000;
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: "Today's Activity", href: '/attendance/today' },
@@ -12,6 +13,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface SessionCard {
     id: number;
+    subject_id: number;
     subject_code: string;
     subject_name: string;
     room: string;
@@ -27,9 +29,11 @@ interface SessionCard {
 
 interface FeedItem {
     id: number;
+    student_db_id: number | null;
     student_name: string;
     student_id: string;
     subject_code: string;
+    session_id: number;
     time: string;
     status: 'present' | 'late' | 'absent';
     method: string;
@@ -63,27 +67,24 @@ const SESSION_STATUS_CFG: Record<string, { bg: string; color: string; dot: strin
     completed: { bg: '#F3F4F6', color: '#6B7280', dot: '#9CA3AF' },
 };
 
-const PALETTE = [
-    '#EDE9FE', '#DBEAFE', '#D1FAE5', '#FCE7F3',
-    '#FEF3C7', '#FFEDD5', '#E0F2FE', '#F0FDF4',
-];
-const PALETTE_TEXT = [
-    '#6D28D9', '#1D4ED8', '#065F46', '#BE185D',
-    '#92400E', '#C2410C', '#0369A1', '#15803D',
-];
+const PALETTE      = ['#EDE9FE','#DBEAFE','#D1FAE5','#FCE7F3','#FEF3C7','#FFEDD5','#E0F2FE','#F0FDF4'];
+const PALETTE_TEXT = ['#6D28D9','#1D4ED8','#065F46','#BE185D','#92400E','#C2410C','#0369A1','#15803D'];
 
 export default function TodayActivity() {
     const { sessions, feed, stats, date } = usePage<any>().props as Props;
 
-    const [newIds, setNewIds] = useState<Set<number>>(new Set());
-    const prevIds = useRef<Set<number>>(new Set(feed.map(f => f.id)));
-    const [clock, setClock] = useState(new Date());
+    const [newIds, setNewIds]   = useState<Set<number>>(new Set());
+    const prevIds               = useRef<Set<number>>(new Set(feed.map(f => f.id)));
+    const [clock, setClock]     = useState(new Date());
+    const [piOnline, setPiOnline] = useState<boolean | null>(null);
 
+    // Clock tick
     useEffect(() => {
         const t = setInterval(() => setClock(new Date()), 1000);
         return () => clearInterval(t);
     }, []);
 
+    // Data polling
     useEffect(() => {
         const t = setInterval(() => {
             router.reload({ only: ['sessions', 'feed', 'stats'], preserveUrl: true });
@@ -91,9 +92,24 @@ export default function TodayActivity() {
         return () => clearInterval(t);
     }, []);
 
+    // Pi status polling
+    useEffect(() => {
+        const check = async () => {
+            try {
+                const res  = await fetch('/system/pi-status/api');
+                const data = await res.json();
+                setPiOnline(data.online === true);
+            } catch { setPiOnline(false); }
+        };
+        check();
+        const t = setInterval(check, PI_POLL_MS);
+        return () => clearInterval(t);
+    }, []);
+
+    // Highlight new feed items
     useEffect(() => {
         const incoming = feed.map(f => f.id);
-        const fresh = incoming.filter(id => !prevIds.current.has(id));
+        const fresh    = incoming.filter(id => !prevIds.current.has(id));
         if (fresh.length) {
             setNewIds(new Set(fresh));
             setTimeout(() => setNewIds(new Set()), 3000);
@@ -101,7 +117,9 @@ export default function TodayActivity() {
         prevIds.current = new Set(incoming);
     }, [feed]);
 
-    const rate = stats.total > 0 ? Math.round((stats.present + stats.late) / stats.total * 100) : 0;
+    const piDot   = piOnline === null ? '#9CA3AF' : piOnline ? '#22C55E' : '#EF4444';
+    const piLabel = piOnline === null ? 'Checking…' : piOnline ? `Live · ${clock.toLocaleTimeString('en-US', { hour12: false })}` : 'Pi offline';
+    const piAnim  = piOnline === true ? 'pulse 1.5s infinite' : 'none';
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -110,6 +128,10 @@ export default function TodayActivity() {
                 @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:.4} }
                 @keyframes fadein { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
                 .feed-new { animation: fadein 0.35s ease; background: #F0FDF4 !important; }
+                .session-card { transition: box-shadow 0.15s, transform 0.15s; cursor: pointer; text-decoration: none; display: block; }
+                .session-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.10) !important; transform: translateY(-1px); }
+                .feed-row { transition: background 0.15s; cursor: pointer; text-decoration: none; display: flex; }
+                .feed-row:hover { background: #F9FAFB !important; }
             `}</style>
 
             <div style={{ padding: '24px', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
@@ -120,20 +142,21 @@ export default function TodayActivity() {
                         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>Today's Activity</h1>
                         <p style={{ fontSize: 13, color: '#9CA3AF', margin: '3px 0 0' }}>{date}</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#6B7280' }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-                        Live · {clock.toLocaleTimeString('en-US', { hour12: false })}
-                    </div>
+                    {/* Pi-aware live indicator */}
+                    <Link href="/system/pi-status" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#6B7280', textDecoration: 'none', padding: '6px 12px', borderRadius: 20, border: '1px solid #E5E7EB', background: '#fff' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: piDot, display: 'inline-block', animation: piAnim }} />
+                        {piLabel}
+                    </Link>
                 </div>
 
                 {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
                     {[
                         { label: 'Sessions Today', value: stats.total_sessions, icon: <CalendarDays size={15} color="#7C3AED" />, bg: '#F5F3FF' },
-                        { label: 'Check-ins',      value: stats.total,          icon: <Users size={15} color="#2563EB" />,       bg: '#EFF6FF' },
-                        { label: 'Present',        value: stats.present,        icon: <CheckCircle size={15} color="#059669" />, bg: '#F0FDF4' },
-                        { label: 'Late',           value: stats.late,           icon: <Clock size={15} color="#D97706" />,       bg: '#FFFBEB' },
-                        { label: 'Via Face ID',    value: stats.face_id,        icon: <ScanFace size={15} color="#6D28D9" />,    bg: '#EDE9FE' },
+                        { label: 'Check-ins',      value: stats.total,          icon: <Users size={15} color="#2563EB" />,        bg: '#EFF6FF' },
+                        { label: 'Present',        value: stats.present,        icon: <CheckCircle size={15} color="#059669" />,  bg: '#F0FDF4' },
+                        { label: 'Late',           value: stats.late,           icon: <Clock size={15} color="#D97706" />,        bg: '#FFFBEB' },
+                        { label: 'Via Face ID',    value: stats.face_id,        icon: <ScanFace size={15} color="#6D28D9" />,     bg: '#EDE9FE' },
                     ].map(({ label, value, icon, bg }) => (
                         <div key={label} style={{ background: '#fff', border: '1px solid #F3F4F6', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
                             <div style={{ width: 32, height: 32, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>{icon}</div>
@@ -161,12 +184,17 @@ export default function TodayActivity() {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                                 {sessions.map((s, idx) => {
                                     const attendRate = s.enrolled > 0 ? Math.round(((s.present + s.late) / s.enrolled) * 100) : 0;
-                                    const sc = SESSION_STATUS_CFG[s.status] ?? SESSION_STATUS_CFG.scheduled;
+                                    const sc  = SESSION_STATUS_CFG[s.status] ?? SESSION_STATUS_CFG.scheduled;
                                     const pal = PALETTE[idx % PALETTE.length];
                                     const palT = PALETTE_TEXT[idx % PALETTE_TEXT.length];
 
                                     return (
-                                        <div key={s.id} style={{ background: '#fff', border: '1px solid #F3F4F6', borderRadius: 14, padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                        <Link
+                                            key={s.id}
+                                            href={`/subjects/${s.subject_id}/sessions/${s.id}/attendance`}
+                                            className="session-card"
+                                            style={{ background: '#fff', border: '1px solid #F3F4F6', borderRadius: 14, padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', color: 'inherit' }}
+                                        >
                                             {/* Top row */}
                                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -209,13 +237,13 @@ export default function TodayActivity() {
                                             <div style={{ display: 'flex', gap: 6 }}>
                                                 {[
                                                     { label: `${s.present} present`, bg: '#DCFCE7', color: '#166534' },
-                                                    { label: `${s.late} late`,    bg: '#FEF9C3', color: '#854D0E' },
-                                                    { label: `${s.absent} absent`, bg: '#FEE2E2', color: '#991B1B' },
+                                                    { label: `${s.late} late`,       bg: '#FEF9C3', color: '#854D0E' },
+                                                    { label: `${s.absent} absent`,   bg: '#FEE2E2', color: '#991B1B' },
                                                 ].map(p => (
                                                     <span key={p.label} style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: p.bg, color: p.color }}>{p.label}</span>
                                                 ))}
                                             </div>
-                                        </div>
+                                        </Link>
                                     );
                                 })}
                             </div>
@@ -230,7 +258,7 @@ export default function TodayActivity() {
                                 <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>Live Feed</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: piDot, display: 'inline-block', animation: piAnim }} />
                                 <span style={{ fontSize: 10, color: '#9CA3AF' }}>auto-refresh</span>
                             </div>
                         </div>
@@ -243,13 +271,15 @@ export default function TodayActivity() {
                         ) : (
                             <div style={{ maxHeight: 520, overflowY: 'auto' }}>
                                 {feed.map((f, i) => {
-                                    const sc = STATUS_CFG[f.status] ?? STATUS_CFG.absent;
+                                    const sc     = STATUS_CFG[f.status] ?? STATUS_CFG.absent;
                                     const isFace = f.method === 'face' || f.method === 'face_id';
+                                    const href   = f.student_db_id ? `/students/${f.student_db_id}` : '#';
                                     return (
-                                        <div
+                                        <Link
                                             key={f.id}
-                                            className={newIds.has(f.id) ? 'feed-new' : ''}
-                                            style={{ padding: '10px 16px', borderBottom: i < feed.length - 1 ? '1px solid #F9FAFB' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}
+                                            href={href}
+                                            className={`feed-row${newIds.has(f.id) ? ' feed-new' : ''}`}
+                                            style={{ padding: '10px 16px', borderBottom: i < feed.length - 1 ? '1px solid #F9FAFB' : 'none', alignItems: 'center', gap: 10, color: 'inherit' }}
                                         >
                                             {/* Avatar */}
                                             <div style={{ width: 34, height: 34, borderRadius: 9, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -263,7 +293,7 @@ export default function TodayActivity() {
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.student_name}</div>
                                                 <div style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
                                                     <span>{f.subject_code}</span>
-                                                    {isFace && <><span>·</span><ScanFace size={10} color="#7C3AED" /></>}
+                                                    {isFace  && <><span>·</span><ScanFace size={10} color="#7C3AED" /></>}
                                                     {!isFace && <><span>·</span><UserCheck size={10} color="#059669" /></>}
                                                 </div>
                                             </div>
@@ -273,7 +303,7 @@ export default function TodayActivity() {
                                                 <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#9CA3AF' }}>{f.time}</span>
                                                 <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.color }}>{sc.label}</span>
                                             </div>
-                                        </div>
+                                        </Link>
                                     );
                                 })}
                             </div>

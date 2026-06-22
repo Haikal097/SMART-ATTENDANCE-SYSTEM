@@ -32,7 +32,6 @@ interface Student {
     studentId: string;
     email: string;
     phone: string;
-    class: string;
     enrollmentDate: string;
     status: 'active' | 'inactive' | 'graduated';
     attendanceRate: number;
@@ -62,9 +61,7 @@ interface Props {
     filters: {
         search?: string;
         status?: string;
-        class?: string;
     };
-    classes: string[];
     stats: {
         total: number;
         active: number;
@@ -184,21 +181,18 @@ function RowMenu({ student, onDelete }: { student: Student; onDelete: (s: Studen
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function StudentsIndex({ students, filters = {}, classes = [], stats }: Props) {
+export default function StudentsIndex({ students, filters = {}, stats }: Props) {
     const [search, setSearch]             = useState(filters.search ?? '');
     const [selectedStatus, setSelectedStatus] = useState(filters.status ?? 'all');
-    const [selectedClass, setSelectedClass]   = useState(filters.class ?? 'all');
     const [showFilters, setShowFilters]   = useState(false);
     const [selectedIds, setSelectedIds]   = useState<number[]>([]);
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
-    const [processing, setProcessing]     = useState(false);
 
     // ── Server-side filter ────────────────────────────────────────────────────
     const applyFilters = (overrides: Record<string, string> = {}) => {
         router.get('/students', {
             search,
             status: selectedStatus !== 'all' ? selectedStatus : '',
-            class:  selectedClass  !== 'all' ? selectedClass  : '',
             ...overrides,
         }, { preserveState: true, replace: true });
     };
@@ -210,17 +204,15 @@ export default function StudentsIndex({ students, filters = {}, classes = [], st
     const clearFilters = () => {
         setSearch('');
         setSelectedStatus('all');
-        setSelectedClass('all');
         router.get('/students', {}, { preserveState: true, replace: true });
     };
 
     // ── Delete ────────────────────────────────────────────────────────────────
     const confirmDelete = () => {
         if (!deleteTarget) return;
-        setProcessing(true);
         router.delete(`/students/${deleteTarget.id}`, {
             preserveScroll: true,
-            onFinish: () => { setProcessing(false); setDeleteTarget(null); },
+            onFinish: () => setDeleteTarget(null),
         });
     };
 
@@ -332,7 +324,7 @@ export default function StudentsIndex({ students, filters = {}, classes = [], st
                         <button onClick={() => setShowFilters(!showFilters)} className="stu-btn stu-btn-ghost">
                             <Filter size={13} />
                             Filters
-                            {(selectedStatus !== 'all' || selectedClass !== 'all') && (
+                            {selectedStatus !== 'all' && (
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0 }} />
                             )}
                         </button>
@@ -354,18 +346,6 @@ export default function StudentsIndex({ students, filters = {}, classes = [], st
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>
                                 <option value="graduated">Graduated</option>
-                            </select>
-
-                            <select
-                                value={selectedClass}
-                                onChange={(e) => { setSelectedClass(e.target.value); applyFilters({ class: e.target.value !== 'all' ? e.target.value : '' }); }}
-                                className="stu-input"
-                                style={{ minWidth: 160 }}
-                            >
-                                <option value="all">All classes</option>
-                                {classes.map((c) => (
-                                    <option key={c} value={c}>{c}</option>
-                                ))}
                             </select>
 
                             <button onClick={clearFilters} className="stu-btn" style={{ color: '#6B7280', background: 'transparent', border: 'none', padding: '9px 12px' }}>
@@ -415,7 +395,6 @@ export default function StudentsIndex({ students, filters = {}, classes = [], st
                                     <th>Student</th>
                                     <th>ID</th>
                                     <th>Contact</th>
-                                    <th>Class</th>
                                     <th>Face ID</th>
                                     <th>Attendance</th>
                                     <th>Status</th>
@@ -484,13 +463,6 @@ export default function StudentsIndex({ students, filters = {}, classes = [], st
                                                             </div>
                                                         )}
                                                     </div>
-                                                </td>
-
-                                                {/* Class */}
-                                                <td>
-                                                    <span style={{ background: '#F3F4F6', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#374151' }}>
-                                                        {student.class ?? 'Unassigned'}
-                                                    </span>
                                                 </td>
 
                                                 {/* Face ID */}

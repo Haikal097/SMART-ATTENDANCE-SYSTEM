@@ -3,7 +3,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import {
     Cpu, Wifi, WifiOff, Camera, CameraOff,
-    CheckCircle, AlertCircle, RefreshCw, Play, Square,
+    CheckCircle, AlertCircle, RefreshCw, Play, Square, Plus, X,
 } from 'lucide-react';
 
 interface PiStatus {
@@ -29,13 +29,20 @@ interface Session {
     present: number;
 }
 
+interface Subject {
+    id: number;
+    code: string;
+    name: string;
+}
+
 interface Props {
     todaySessions: Session[];
     piUrl: string;
     date: string;
+    subjects: Subject[];
 }
 
-export default function PiStatus({ todaySessions, piUrl, date }: Props) {
+export default function PiStatus({ todaySessions, piUrl, date, subjects }: Props) {
     const { props } = usePage<{ flash?: { success?: string; error?: string } }>();
     const flash = props.flash;
 
@@ -44,6 +51,9 @@ export default function PiStatus({ todaySessions, piUrl, date }: Props) {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [preparing, setPreparing] = useState<number | null>(null);
     const [stopping, setStopping] = useState(false);
+    const [showTestModal, setShowTestModal] = useState(false);
+    const [testSubjectId, setTestSubjectId] = useState<string>('');
+    const [creatingTest, setCreatingTest] = useState(false);
 
     const fetchStatus = async () => {
         try {
@@ -260,7 +270,16 @@ export default function PiStatus({ todaySessions, piUrl, date }: Props) {
                                 Click "Prepare Now" to push face data to the Pi immediately
                             </p>
                         </div>
-                        <span className="text-sm text-gray-400">{todaySessions.length} session{todaySessions.length !== 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-400">{todaySessions.length} session{todaySessions.length !== 1 ? 's' : ''}</span>
+                            <button
+                                onClick={() => setShowTestModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg transition"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                Create test session
+                            </button>
+                        </div>
                     </div>
 
                     {todaySessions.length === 0 ? (
@@ -361,6 +380,56 @@ export default function PiStatus({ todaySessions, piUrl, date }: Props) {
                     )}
                 </div>
             </div>
+
+            {/* ── Create test session modal ── */}
+            {showTestModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                    <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 60px rgba(0,0,0,0.18)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', margin: 0 }}>Create Test Session</h3>
+                            <button onClick={() => setShowTestModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4, display: 'flex' }}>
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
+                            Creates a scheduled session for the <strong>current time block</strong> so you can test the camera immediately.
+                        </p>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Subject</label>
+                        <select
+                            value={testSubjectId}
+                            onChange={e => setTestSubjectId(e.target.value)}
+                            style={{ width: '100%', height: 42, padding: '0 12px', fontSize: 14, fontFamily: 'inherit', border: '1.5px solid #E5E7EB', borderRadius: 10, outline: 'none', background: '#fff', color: '#111827', marginBottom: 20 }}
+                        >
+                            <option value="">— Select a subject —</option>
+                            {subjects.map(s => (
+                                <option key={s.id} value={s.id}>{s.code} — {s.name}</option>
+                            ))}
+                        </select>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button
+                                onClick={() => setShowTestModal(false)}
+                                style={{ flex: 1, height: 42, background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={!testSubjectId || creatingTest}
+                                onClick={() => {
+                                    setCreatingTest(true);
+                                    router.post('/system/pi-status/create-test-session', { subject_id: testSubjectId }, {
+                                        preserveScroll: true,
+                                        onSuccess: () => { setShowTestModal(false); setTestSubjectId(''); },
+                                        onFinish: () => setCreatingTest(false),
+                                    });
+                                }}
+                                style={{ flex: 1, height: 42, background: testSubjectId ? '#4F46E5' : '#E5E7EB', color: testSubjectId ? '#fff' : '#9CA3AF', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: testSubjectId ? 'pointer' : 'not-allowed' }}
+                            >
+                                {creatingTest ? 'Creating…' : 'Create Session'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AppLayout>
     );
 }

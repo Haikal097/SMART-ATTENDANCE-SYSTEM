@@ -364,7 +364,7 @@ export default function AdminReports({ summary, trend, subjectStats, methods, da
                                         <div style={{ flex: 1, height: 16, background: '#F3F4F6', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
                                             <div style={{
                                                 height: '100%',
-                                                width: `${d.total > 0 ? (d.total / maxDayTotal) * 100 : 0}%`,
+                                                width: `${d.rate}%`,
                                                 background: d.rate >= 80 ? '#10B981' : d.rate >= 60 ? '#F59E0B' : d.total === 0 ? '#E5E7EB' : '#EF4444',
                                                 borderRadius: 4,
                                                 opacity: 0.7,

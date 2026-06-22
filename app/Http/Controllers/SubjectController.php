@@ -93,7 +93,7 @@ class SubjectController extends Controller
             'lecturers:id,name,email',
             'students:id,name,student_id,email,status',
             'sessions' => fn($q) => $q->withCount([
-                'attendances as present_count' => fn($q) => $q->where('status', 'present'),
+                'attendances as present_count' => fn($q) => $q->whereIn('status', ['present', 'late']),
                 'attendances as total_count',
             ])->orderBy('date', 'desc'),
         ]);
@@ -129,8 +129,6 @@ class SubjectController extends Controller
                     'end_time'       => \App\Models\Session::BLOCKS[$s->end_block]['end'],
                     'room'           => $s->room,
                     'status'         => $s->status,
-                    'is_holiday'     => $s->is_holiday,
-                    'holiday_action' => $s->holiday_action,
                     'present'        => $s->present_count ?? 0,
                     'total'          => $s->total_count   ?? 0,
                 ]),
@@ -144,6 +142,7 @@ class SubjectController extends Controller
                 ->select('id', 'name', 'student_id', 'email')
                 ->orderBy('name')
                 ->get(),
+            'canManage' => in_array(auth()->user()->role, ['admin', 'lecturer']),
         ]);
     }
 
@@ -238,7 +237,7 @@ class SubjectController extends Controller
     private function calcAvgAttendance(Subject $subject): float
     {
         $sessions = $subject->sessions()->withCount([
-            'attendances as present_count' => fn($q) => $q->where('status', 'present'),
+            'attendances as present_count' => fn($q) => $q->whereIn('status', ['present', 'late']),
             'attendances as total_count',
         ])->get();
 

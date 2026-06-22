@@ -19,7 +19,7 @@ from flask import Flask, request, jsonify, Response
 from picamera2 import Picamera2
 
 # ─── Config ──────────────────────────────────────────────────────────────────
-LARAVEL_URL   = "http://192.168.0.16:8000"
+LARAVEL_URL   = "http://100.98.253.88:8000"
 PI_TOKEN      = "my-super-secret-pi-token-123"
 FLASK_PORT    = 5000
 SCAN_INTERVAL = 1       # Seconds between face recognition passes
@@ -93,6 +93,21 @@ def prepare():
 
     log.info(f"Received session prepare: Session {data['session_id']} — {data.get('subject')}")
     log.info(f"Students to load: {len(data.get('students', []))}")
+
+    # If the same session is already loaded and has faces, skip reload to preserve marked count
+    with session_lock:
+        already_loaded = (
+            current_session is not None
+            and current_session.get("session_id") == data["session_id"]
+            and len(known_encodings) > 0
+        )
+
+    if already_loaded:
+        log.info(f"Session {data['session_id']} already active — skipping reload")
+        return jsonify({
+            "success": True,
+            "message": f"Session {data['session_id']} already active",
+        })
 
     threading.Thread(target=load_session, args=(data,), daemon=True).start()
 
@@ -242,11 +257,11 @@ def camera_loop():
                         color = (0, 0, 255)
                         if i < len(face_encs):
                             distances = face_recognition.face_distance(enc_copy, face_encs[i])
-                            matches   = face_recognition.compare_faces(enc_copy, face_encs[i], tolerance=0.5)
+                            matches   = face_recognition.compare_faces(enc_copy, face_encs[i], tolerance=0.45)
                             best_idx  = int(np.argmin(distances))
-                            if matches[best_idx]:
+                            conf      = (1 - distances[best_idx]) * 100
+                            if matches[best_idx] and conf >= 55:
                                 student    = stu_copy[best_idx]
-                                conf       = (1 - distances[best_idx]) * 100
                                 student_id = student["id"]
                                 label      = f"{student['name']} ({conf:.0f}%)"
                                 if student_id in marked_copy:

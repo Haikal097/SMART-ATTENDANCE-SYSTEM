@@ -5,7 +5,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Http\Controllers\StudentController; 
-use App\Http\Controllers\MediaController; 
 use App\Http\Controllers\FaceApprovalController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\SessionController;
@@ -13,8 +12,49 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScheduleController;
 
 
+// Public Pi status endpoint (used by welcome page before login)
+Route::get('/api/pi-status-public', function () {
+    try {
+        $res = \Illuminate\Support\Facades\Http::withHeaders(['X-Pi-Token' => config('pi.token')])
+            ->timeout(4)
+            ->get(config('pi.url') . '/status');
+        return response()->json($res->json());
+    } catch (\Exception $e) {
+        return response()->json([
+            'online' => false, 'camera_running' => false,
+            'faces_loaded' => 0,
+        ]);
+    }
+})->name('pi.status.public');
+
 Route::get('/', function () {
-    return Inertia::render('welcome');
+    $totalStudents = \App\Models\Student::count();
+
+    $attStats = \App\Models\Attendance::selectRaw(
+        'SUM(status IN ("present","late")) as attended, COUNT(*) as total'
+    )->first();
+    $avgAttendance = ($attStats->total > 0)
+        ? round($attStats->attended / $attStats->total * 100)
+        : 0;
+
+    $recentActivity = \App\Models\Attendance::with(['student', 'session.subject'])
+        ->whereIn('status', ['present', 'late'])
+        ->orderBy('created_at', 'desc')
+        ->take(5)
+        ->get()
+        ->map(fn ($a) => [
+            'name'         => $a->student?->name ?? 'Unknown',
+            'subject_code' => $a->session?->subject?->code ?? '—',
+            'time'         => $a->checked_in_at
+                ? \Carbon\Carbon::parse($a->checked_in_at)->format('H:i')
+                : $a->created_at->format('H:i'),
+        ]);
+
+    return Inertia::render('welcome', [
+        'totalStudents' => $totalStudents,
+        'avgAttendance' => $avgAttendance,
+        'recentActivity' => $recentActivity,
+    ]);
 })->name('home');
 
 Route::middleware(['auth'])->group(function () {
@@ -107,11 +147,13 @@ Route::middleware(['auth'])->group(function () {
             'recentAttendance' => $recentAttendance,
             'weeklySchedules'  => $weeklySchedules,
             'weeklyTrend'      => $weeklyTrend,
+            'piUrl'            => config('pi.url'),
         ]);
     })->name('dashboard');
 
     // Reports & Analytics
     Route::get('/reports', function () {
+        abort_if(auth()->user()->role === 'student', 403);
         // ── Summary ───────────────────────────────────────────────────────────
         $totalStudents  = \App\Models\Student::count();
         $activeSubjects = \App\Models\Subject::where('status', 'active')->count();
@@ -1127,21 +1169,6 @@ Route::middleware(['auth'])->group(function () {
     });
 
 
-    // Media Library Routes
-    Route::get('/media', [MediaController::class, 'index'])->name('media.index');
-    Route::post('/media', [MediaController::class, 'store'])->name('media.store');
-    Route::delete('/media/{medium}', [MediaController::class, 'destroy'])->name('media.destroy');
-    Route::post('/media/bulk-destroy', [MediaController::class, 'bulkDestroy'])->name('media.bulk-destroy');
-    Route::get('/media/{medium}/download', [MediaController::class, 'download'])->name('media.download');
-    
-    // Legacy hidden upload test (now points to media system)
-    Route::get('/uploadtest', function () {
-        return Inertia::render('Media/Index', [
-            'media' => \App\Models\Media::latest()->paginate(20),
-            'collections' => \App\Models\Media::select('collection')->distinct()->pluck('collection'),
-            'currentCollection' => 'default',
-        ]);
-    })->name('upload.test');
 
     // Profile face upload (3-photo: frontal + left + right)
     Route::post('/profile/upload-face', function (Request $request) {
@@ -1275,7 +1302,7 @@ Route::middleware(['auth'])->group(function () {
                     'end_block'      => $s->end_block,
                     'room'           => $s->room ?? '—',
                     'status'         => $s->status,
-                    'face_ready'     => $s->subject?->students()->where('face_status', 'approved')->count() ?? 0,
+                    'face_ready'     => $s->subject?->students()->join('users', 'users.email', '=', 'students.email')->where('users.face_status', 'approved')->whereNotNull('users.face_image_path')->count() ?? 0,
                     'total_enrolled' => $s->subject?->students()->count() ?? 0,
                     'present'        => $s->attendances()->whereIn('status', ['present', 'late'])->count(),
                 ]);
@@ -1284,6 +1311,7 @@ Route::middleware(['auth'])->group(function () {
                 'todaySessions' => $sessions,
                 'piUrl'         => config('pi.url'),
                 'date'          => today()->format('l, d F Y'),
+                'subjects'      => \App\Models\Subject::orderBy('code')->get(['id', 'code', 'name']),
             ]);
         })->name('index');
 
@@ -1308,11 +1336,18 @@ Route::middleware(['auth'])->group(function () {
             $session->load('subject');
 
             $students = $session->subject->students()
-                ->where('face_status', 'approved')
-                ->whereNotNull('face_image_url')
-                ->select('students.id', 'students.name', 'students.student_id', 'students.face_image_url')
+                ->join('users', 'users.email', '=', 'students.email')
+                ->where('users.face_status', 'approved')
+                ->whereNotNull('users.face_image_path')
+                ->select('students.id', 'students.name', 'students.student_id', 'students.email')
                 ->get()
-                ->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'face_url' => $s->face_image_url]);
+                ->map(fn ($s) => [
+                    'id'             => $s->id,
+                    'name'           => $s->name,
+                    'face_url'       => $s->face_image_url,
+                    'face_left_url'  => $s->face_left_path  ? config('app.url') . '/storage/' . $s->face_left_path  : null,
+                    'face_right_url' => $s->face_right_path ? config('app.url') . '/storage/' . $s->face_right_path : null,
+                ]);
 
             if ($students->isEmpty()) {
                 return back()->with('error', 'No students with approved faces for this session.');
@@ -1339,6 +1374,36 @@ Route::middleware(['auth'])->group(function () {
                 return back()->with('error', "Could not reach Pi: {$e->getMessage()}");
             }
         })->name('prepare');
+
+        // Create a test session for now
+        Route::post('/create-test-session', function (\Illuminate\Http\Request $request) {
+            $request->validate(['subject_id' => 'required|exists:subjects,id']);
+
+            $currentHour  = now()->hour;
+            $currentBlock = null;
+            foreach (\App\Models\Session::BLOCKS as $block => $times) {
+                if ($currentHour >= (int) explode(':', $times['start'])[0]
+                 && $currentHour <  (int) explode(':', $times['end'])[0]) {
+                    $currentBlock = $block;
+                    break;
+                }
+            }
+            $currentBlock ??= array_key_last(\App\Models\Session::BLOCKS);
+
+            $session = \App\Models\Session::create([
+                'subject_id'  => $request->subject_id,
+                'date'        => today(),
+                'start_block' => $currentBlock,
+                'end_block'   => $currentBlock,
+                'room'        => 'Test Room',
+                'status'      => 'scheduled',
+            ]);
+
+            $time = \App\Models\Session::BLOCKS[$currentBlock]['start']
+                  . '–' . \App\Models\Session::BLOCKS[$currentBlock]['end'];
+
+            return back()->with('success', "Test session created — Block {$currentBlock} ({$time}).");
+        })->name('create-test-session');
 
         // Stop the Pi camera
         Route::post('/stop', function () {
@@ -1381,10 +1446,14 @@ Route::middleware(['auth'])->group(function () {
 
     // Admin: Attendance Records
     Route::get('/attendance', function (Request $request) {
+        abort_if(auth()->user()->role === 'student', 403);
         $query = \App\Models\Attendance::with(['student', 'session.subject'])
             ->whereHas('session')
             ->whereHas('student');
 
+        if ($request->filled('session_id')) {
+            $query->where('session_id', $request->session_id);
+        }
         if ($request->filled('subject')) {
             $query->whereHas('session', fn ($q) => $q->where('subject_id', $request->subject));
         }
@@ -1435,13 +1504,14 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Admin/AttendanceRecords', [
             'records'  => $records,
             'subjects' => $subjects,
-            'filters'  => $request->only(['search', 'subject', 'status', 'method', 'date_from', 'date_to']),
+            'filters'  => $request->only(['search', 'subject', 'session_id', 'status', 'method', 'date_from', 'date_to']),
             'stats'    => $stats,
         ]);
     })->name('attendance.records');
 
     // Admin: Today's Activity
     Route::get('/attendance/today', function () {
+        abort_if(auth()->user()->role === 'student', 403);
         $today = today()->toDateString();
 
         $sessions = \App\Models\Session::with('subject')
@@ -1451,6 +1521,7 @@ Route::middleware(['auth'])->group(function () {
             ->get()
             ->map(fn ($s) => [
                 'id'           => $s->id,
+                'subject_id'   => $s->subject_id,
                 'subject_code' => $s->subject->code ?? '—',
                 'subject_name' => $s->subject->name ?? '—',
                 'room'         => $s->room ?? '—',
@@ -1471,13 +1542,15 @@ Route::middleware(['auth'])->group(function () {
             ->limit(50)
             ->get()
             ->map(fn ($a) => [
-                'id'           => $a->id,
-                'student_name' => $a->student->name ?? '—',
-                'student_id'   => $a->student->student_id ?? '—',
-                'subject_code' => $a->session?->subject?->code ?? '—',
-                'time'         => $a->checked_in_at->format('H:i:s'),
-                'status'       => $a->status,
-                'method'       => $a->method ?? 'manual',
+                'id'             => $a->id,
+                'student_db_id'  => $a->student?->id,
+                'student_name'   => $a->student->name ?? '—',
+                'student_id'     => $a->student->student_id ?? '—',
+                'subject_code'   => $a->session?->subject?->code ?? '—',
+                'session_id'     => $a->session_id,
+                'time'           => $a->checked_in_at->format('H:i:s'),
+                'status'         => $a->status,
+                'method'         => $a->method ?? 'manual',
             ])->values();
 
         $stats = [

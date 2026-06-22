@@ -14,7 +14,7 @@ class PrepareSessionsCommand extends Command
     public function handle(): void
     {
         $this->info('Checking for upcoming sessions...');
-        PrepareSessionJob::dispatch();
+        PrepareSessionJob::dispatchSync();
         $this->info('Done.');
     }
 }

@@ -4,7 +4,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import {
     CalendarDays, Clock, MapPin, Users, CheckCircle, ClipboardList,
-    ChevronLeft, ChevronRight, Filter, X, Plus, AlertCircle,
+    ChevronLeft, ChevronRight, Filter, X, Plus,
 } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -24,7 +24,6 @@ interface Session {
     enrolled: number;
     present: number;
     recorded: boolean;
-    is_holiday: boolean;
 }
 
 interface PaginatedSessions {
@@ -207,7 +206,6 @@ export default function LecturerSessions() {
                                             {/* Date */}
                                             <td style={{ padding: '13px 20px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                    {s.is_holiday && <AlertCircle size={12} color="#F59E0B" title="Holiday" />}
                                                     <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>{s.date}</span>
                                                 </div>
                                             </td>

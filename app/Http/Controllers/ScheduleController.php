@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PublicHoliday;
 use App\Models\Schedule;
 use App\Models\Session;
 use App\Models\Subject;
@@ -72,7 +71,8 @@ class ScheduleController extends Controller
                 ]),
             'conflicts'       => $conflicts,
             'generatedCount'  => $subject->sessions()->whereNotNull('schedule_id')->count() ?: null,
-            'pendingHolidays' => $subject->sessions()->where('is_holiday', true)->where('holiday_action', 'pending')->count(),
+            'pendingHolidays' => 0,
+            'canManage'       => in_array(auth()->user()->role, ['admin', 'lecturer']),
         ]);
     }
 
@@ -150,23 +150,17 @@ class ScheduleController extends Controller
             }
 
             while ($current->lte($subject->end_date)) {
-                $dateStr    = $current->format('Y-m-d');
-                $isHoliday  = PublicHoliday::isHoliday($dateStr);
-                $holidayName = $isHoliday ? PublicHoliday::nameFor($dateStr) : null;
+                $dateStr = $current->format('Y-m-d');
 
-            Session::create([
-                'subject_id'     => $subject->id,
-                'schedule_id'    => $schedule->id,
-                'date'           => $dateStr,
-                'start_block'    => $schedule->start_block,
-                'end_block'      => $schedule->end_block,
-                'room'           => 'Pi Room',
-                'status'         => $isHoliday ? 'cancelled' : 'scheduled',
-                'is_holiday'     => $isHoliday,
-                'holiday_note'   => $holidayName,
-                'holiday_action' => $isHoliday ? 'pending' : null,  // ← null for normal sessions
-                'notes'          => $isHoliday ? "Public holiday: {$holidayName}" : null,
-            ]);
+                Session::create([
+                    'subject_id'  => $subject->id,
+                    'schedule_id' => $schedule->id,
+                    'date'        => $dateStr,
+                    'start_block' => $schedule->start_block,
+                    'end_block'   => $schedule->end_block,
+                    'room'        => 'Pi Room',
+                    'status'      => 'scheduled',
+                ]);
 
                 $generated++;
                 $current->addWeek();

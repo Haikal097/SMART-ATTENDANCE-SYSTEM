@@ -21,34 +21,34 @@ class PrepareSessionJob implements ShouldQueue
         $piUrl   = config('pi.url');       // http://192.168.0.41:5000
         $piToken = config('pi.token');     // shared secret token
  
-        // Find sessions starting in the next 10 minutes
-        $upcoming = Session::where('status', 'scheduled')
+        // Find sessions starting in the next 10 minutes OR already running
+        $upcoming = Session::whereIn('status', ['scheduled', 'ongoing'])
             ->whereDate('date', today())
             ->get()
             ->filter(function ($session) {
-                $startTime = \Carbon\Carbon::parse(
-                    today()->format('Y-m-d') . ' ' . Session::BLOCKS[$session->start_block]['start']
-                );
-                $minutesUntilStart = now()->diffInMinutes($startTime, false);
-                // Send if session starts between 1 and 10 minutes from now
-                return $minutesUntilStart >= 1 && $minutesUntilStart <= 10;
+                $today     = today()->format('Y-m-d');
+                $startTime = \Carbon\Carbon::parse($today . ' ' . Session::BLOCKS[$session->start_block]['start']);
+                $endTime   = \Carbon\Carbon::parse($today . ' ' . Session::BLOCKS[$session->end_block]['end']);
+                // Send if session hasn't ended yet and starts within 10 minutes (or already started)
+                return now()->lt($endTime) && now()->diffInMinutes($startTime, false) <= 10;
             });
  
         foreach ($upcoming as $session) {
             $session->load('subject');
  
-            // Get enrolled students with approved face images
+            // Get enrolled students with approved face images (face data is on users table)
             $students = $session->subject->students()
-                ->where('face_status', 'approved')
-                ->whereNotNull('face_image_url')
-                ->select('students.id', 'students.name', 'students.student_id', 'students.face_image_url', 'students.face_image_path')
+                ->join('users', 'users.email', '=', 'students.email')
+                ->where('users.face_status', 'approved')
+                ->whereNotNull('users.face_image_path')
+                ->select('students.id', 'students.name', 'students.student_id', 'students.email')
                 ->get()
                 ->map(fn($s) => [
                     'id'             => $s->id,
                     'name'           => $s->name,
                     'face_url'       => $s->face_image_url,
-                    'face_left_url'  => $s->face_left_path  ? asset('storage/' . $s->face_left_path)  : null,
-                    'face_right_url' => $s->face_right_path ? asset('storage/' . $s->face_right_path) : null,
+                    'face_left_url'  => $s->face_left_path  ? config('app.url') . '/storage/' . $s->face_left_path  : null,
+                    'face_right_url' => $s->face_right_path ? config('app.url') . '/storage/' . $s->face_right_path : null,
                 ]);
  
             if ($students->isEmpty()) {

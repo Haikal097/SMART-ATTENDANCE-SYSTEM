@@ -2,10 +2,28 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, ScanFace } from 'lucide-react';
 
-export default function Welcome() {
+interface Activity {
+    name: string;
+    subject_code: string;
+    time: string;
+}
+
+interface Props {
+    totalStudents: number;
+    avgAttendance: number;
+    recentActivity: Activity[];
+}
+
+interface PiStatus {
+    online: boolean;
+    camera_running: boolean;
+    faces_loaded: number;
+}
+
+export default function Welcome({ totalStudents, avgAttendance, recentActivity }: Props) {
     const [showPassword, setShowPassword] = useState(false);
     const [currentTime, setCurrentTime]   = useState(new Date());
-    const [activeTab, setActiveTab]       = useState<'admin' | 'faculty'>('admin');
+    const [piStatus, setPiStatus]         = useState<PiStatus | null>(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
@@ -15,6 +33,21 @@ export default function Welcome() {
 
     useEffect(() => {
         const t = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    useEffect(() => {
+        const check = async () => {
+            try {
+                const res  = await fetch('/api/pi-status-public');
+                const data = await res.json();
+                setPiStatus(data);
+            } catch {
+                setPiStatus({ online: false, camera_running: false, faces_loaded: 0 });
+            }
+        };
+        check();
+        const t = setInterval(check, 15000);
         return () => clearInterval(t);
     }, []);
 
@@ -28,10 +61,6 @@ export default function Welcome() {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
 
-    const placeholders = {
-        admin:   'admin@university.edu',
-        faculty: 'lecturer@university.edu',
-    };
 
     return (
         <>
@@ -56,7 +85,7 @@ export default function Welcome() {
                     <div className="w-card" style={{ flex: '0 0 420px', background: '#fff', padding: '44px 48px', display: 'flex', flexDirection: 'column' }}>
 
                         {/* Brand */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 40 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                                 <div style={{ width: 32, height: 32, background: '#111827', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                     <ScanFace size={17} color="white" />
@@ -64,9 +93,6 @@ export default function Welcome() {
                                 <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: '#111827' }}>SmartAttend</span>
                                 <span style={{ width: 6, height: 6, background: 'rgba(255,255,255,0.6)', borderRadius: '50%', marginBottom: 6, display: 'inline-block', animation: 'pulse 2s infinite' }} />
                             </div>
-                            <Link href={route('register')} style={{ fontSize: 12, fontWeight: 500, color: '#6B7280', textDecoration: 'none', borderBottom: '1px solid #E5E7EB', paddingBottom: 1 }}>
-                                Register
-                            </Link>
                         </div>
 
                         {/* Heading */}
@@ -77,27 +103,6 @@ export default function Welcome() {
                             Sign in to access your dashboard
                         </p>
 
-                        {/* Role tabs */}
-                        <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 10, padding: 3, marginBottom: 24, gap: 3 }}>
-                            {([['admin', 'Administrator'], ['faculty', 'Faculty']] as const).map(([id, label]) => (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    onClick={() => setActiveTab(id)}
-                                    style={{
-                                        flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600,
-                                        fontFamily: 'inherit', border: 'none', borderRadius: 8, cursor: 'pointer',
-                                        background: activeTab === id ? '#fff' : 'transparent',
-                                        color: activeTab === id ? '#111827' : '#9CA3AF',
-                                        boxShadow: activeTab === id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                        transition: 'all 0.15s',
-                                        letterSpacing: '0.01em',
-                                    }}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
 
                         <form onSubmit={submit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                             {/* Email */}
@@ -112,7 +117,7 @@ export default function Welcome() {
                                         type="email"
                                         value={data.email}
                                         onChange={(e) => setData('email', e.target.value)}
-                                        placeholder={placeholders[activeTab]}
+                                        placeholder="your@email.com"
                                         autoFocus
                                         autoComplete="email"
                                     />
@@ -166,18 +171,6 @@ export default function Welcome() {
                             </button>
                         </form>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0' }}>
-                            <div style={{ flex: 1, height: 1, background: '#F3F4F6' }} />
-                            <span style={{ fontSize: 11, color: '#D1D5DB' }}>or</span>
-                            <div style={{ flex: 1, height: 1, background: '#F3F4F6' }} />
-                        </div>
-
-                        <p style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>
-                            Don't have an account?{' '}
-                            <Link href={route('register')} style={{ color: '#111827', fontWeight: 700, textDecoration: 'none' }}>
-                                Create one →
-                            </Link>
-                        </p>
                     </div>
 
                     {/* ── Right: live system panel ── */}
@@ -199,26 +192,54 @@ export default function Welcome() {
                         {/* System status */}
                         <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '18px 20px', marginBottom: 14, background: 'rgba(255,255,255,0.04)' }}>
                             <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 14 }}>System status</p>
-                            {[
-                                { label: 'Raspberry Pi',      status: 'Connected' },
-                                { label: 'Camera Module V2',  status: 'Active'    },
-                                { label: 'Face Recognition',  status: 'Online'    },
-                            ].map((item, i) => (
-                                <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: i < 2 ? 10 : 0 }}>
-                                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{item.label}</span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <div style={{ width: 6, height: 6, background: 'rgba(255,255,255,0.7)', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
-                                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{item.status}</span>
-                                    </div>
-                                </div>
-                            ))}
+                            {(() => {
+                                const checking = piStatus === null;
+                                const rows = [
+                                    {
+                                        label:  'Raspberry Pi',
+                                        on:     piStatus?.online ?? null,
+                                        active: 'Connected',
+                                        off:    'Disconnected',
+                                    },
+                                    {
+                                        label:  'Camera Module V2',
+                                        on:     piStatus?.camera_running ?? null,
+                                        active: 'Active',
+                                        off:    'Inactive',
+                                    },
+                                    {
+                                        label:  'Face Recognition',
+                                        on:     piStatus ? (piStatus.faces_loaded > 0) : null,
+                                        active: 'Online',
+                                        off:    'Standby',
+                                    },
+                                ];
+                                return rows.map((item, i) => {
+                                    const isOn   = item.on === true;
+                                    const dotColor = checking || item.on === null
+                                        ? 'rgba(255,255,255,0.3)'
+                                        : isOn ? '#22C55E' : '#EF4444';
+                                    const label = checking || item.on === null
+                                        ? '—'
+                                        : isOn ? item.active : item.off;
+                                    return (
+                                        <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: i < 2 ? 10 : 0 }}>
+                                            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{item.label}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 6, height: 6, background: dotColor, borderRadius: '50%', animation: isOn && !checking ? 'pulse 2s infinite' : 'none' }} />
+                                                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{label}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
 
                         {/* Stats */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
                             {[
-                                { num: '1,247', label: 'Students enrolled' },
-                                { num: '89%',   label: 'Avg attendance'    },
+                                { num: totalStudents.toLocaleString(), label: 'Students enrolled' },
+                                { num: `${avgAttendance}%`,            label: 'Avg attendance'    },
                             ].map(({ num, label }) => (
                                 <div key={label} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px', background: 'rgba(255,255,255,0.04)' }}>
                                     <p style={{ fontFamily: "'SF Mono','DM Mono',monospace", fontSize: 26, fontWeight: 500, color: '#fff', lineHeight: 1, marginBottom: 4 }}>{num}</p>
@@ -230,16 +251,13 @@ export default function Welcome() {
                         {/* Live activity */}
                         <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '18px 20px', background: 'rgba(255,255,255,0.04)', flex: 1 }}>
                             <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 16 }}>Live activity</p>
-                            {[
-                                { name: 'Amirul Hakim — CS101',    time: '09:02' },
-                                { name: 'Nurul Ain — CS201',       time: '09:15' },
-                                { name: 'Muhammad Hafiz — CS301',  time: '09:22' },
-                                { name: 'Siti Nabilah — CS401',    time: '09:30' },
-                            ].map(({ name, time }) => (
-                                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                            {recentActivity.length === 0 ? (
+                                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic' }}>No recent activity</p>
+                            ) : recentActivity.map((a, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                                     <div style={{ width: 5, height: 5, background: 'rgba(255,255,255,0.5)', borderRadius: '50%', flexShrink: 0 }} />
-                                    <span style={{ flex: 1, fontSize: 12, color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-                                    <span style={{ fontFamily: "'SF Mono','DM Mono',monospace", fontSize: 10, color: 'rgba(255,255,255,0.25)', flexShrink: 0 }}>{time}</span>
+                                    <span style={{ flex: 1, fontSize: 12, color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name} — {a.subject_code}</span>
+                                    <span style={{ fontFamily: "'SF Mono','DM Mono',monospace", fontSize: 10, color: 'rgba(255,255,255,0.25)', flexShrink: 0 }}>{a.time}</span>
                                 </div>
                             ))}
                         </div>

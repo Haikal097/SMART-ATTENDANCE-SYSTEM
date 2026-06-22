@@ -65,6 +65,7 @@ interface Props {
     recentAttendance: AttendanceRecord[];
     weeklyTrend: TrendDay[];
     weeklySchedules: WeeklySchedule[];
+    piUrl: string;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
@@ -234,29 +235,33 @@ function DashTimetable({ schedules, currentBlock }: { schedules: WeeklySchedule[
 
 // ─── Mini bar chart ───────────────────────────────────────────────────────────
 function WeekChart({ trend }: { trend: TrendDay[] }) {
-    const maxRate = 100;
-    const today   = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
 
     return (
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 80 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 110 }}>
             {trend.map((d) => {
                 const isToday = d.date === today;
-                const height  = d.total === 0 ? 4 : Math.max(6, (d.rate / maxRate) * 72);
+                const hasData = d.total > 0;
+                const height  = hasData ? Math.max(10, (d.rate / 100) * 90) : 6;
+                const barBg   = isToday && hasData ? '#4F46E5'
+                              : isToday            ? '#EEF2FF'
+                              : hasData            ? '#DBEAFE'
+                              :                      '#F3F4F6';
+                const barBorder = isToday && hasData ? 'none'
+                                : isToday            ? '1.5px dashed #C7D2FE'
+                                : hasData            ? '1px solid #BFDBFE'
+                                :                      '1px solid #E5E7EB';
+
                 return (
-                    <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontSize: 9, fontFamily: 'monospace', color: d.total === 0 ? '#D1D5DB' : '#6B7280' }}>
-                            {d.total === 0 ? '' : `${d.rate}%`}
+                    <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 9, fontFamily: 'monospace', color: isToday && hasData ? '#4F46E5' : '#9CA3AF', fontWeight: isToday ? 600 : 400, minHeight: 12 }}>
+                            {hasData ? `${d.rate}%` : ''}
                         </span>
                         <div
-                            title={`${d.label}: ${d.present}/${d.total} present (${d.rate}%)`}
-                            style={{
-                                width: '100%', height, borderRadius: 4,
-                                background: isToday ? '#111827' : d.total === 0 ? '#F3F4F6' : '#DBEAFE',
-                                border: isToday ? 'none' : `1px solid ${d.total === 0 ? '#E5E7EB' : '#BFDBFE'}`,
-                                transition: 'height 0.3s',
-                            }}
+                            title={hasData ? `${d.label}: ${d.present}/${d.total} attended (${d.rate}%)` : d.label}
+                            style={{ width: '100%', height, borderRadius: 5, background: barBg, border: barBorder, transition: 'height 0.4s ease' }}
                         />
-                        <span style={{ fontSize: 9, color: isToday ? '#111827' : '#9CA3AF', fontWeight: isToday ? 700 : 400 }}>
+                        <span style={{ fontSize: 9, color: isToday ? '#4F46E5' : '#9CA3AF', fontWeight: isToday ? 700 : 400 }}>
                             {d.label}
                         </span>
                     </div>
@@ -266,10 +271,9 @@ function WeekChart({ trend }: { trend: TrendDay[] }) {
     );
 }
 
-const STREAM_URL = 'https://raspberrypi.tail1d11cb.ts.net/house/';
-
-function CameraFeed() {
+function CameraFeed({ piUrl }: { piUrl: string }) {
     const [status, setStatus] = useState<'loading' | 'live' | 'offline'>('loading');
+    const streamUrl = `${piUrl}/stream`;
 
     return (
         <div className="d-card" style={{ overflow: 'hidden' }}>
@@ -287,16 +291,15 @@ function CameraFeed() {
                             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
                         </svg>
                         <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>NO SIGNAL</span>
-                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)' }}>Ensure Tailscale is connected</span>
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)' }}>Pi offline or camera not running</span>
                     </div>
                 )}
-                <iframe
-                    src={STREAM_URL}
-                    style={{ width: '100%', height: '100%', border: 'none', display: status === 'offline' ? 'none' : 'block' }}
+                <img
+                    src={streamUrl}
+                    alt="Pi camera feed"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', display: status === 'offline' ? 'none' : 'block' }}
                     onLoad={() => setStatus('live')}
                     onError={() => setStatus('offline')}
-                    allow="autoplay"
-                    title="Pi Camera Feed"
                 />
             </div>
         </div>
@@ -304,13 +307,29 @@ function CameraFeed() {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Dashboard({ stats, todayClasses, recentAttendance, weeklyTrend, weeklySchedules }: Props) {
+export default function Dashboard({ stats, todayClasses, recentAttendance, weeklyTrend, weeklySchedules, piUrl }: Props) {
     const [time, setTime] = useState(new Date());
     const [search, setSearch] = useState('');
+    const [piOnline, setPiOnline] = useState<boolean | null>(null);
 
     useEffect(() => {
         const t = setInterval(() => setTime(new Date()), 1000);
         return () => clearInterval(t);
+    }, []);
+
+    useEffect(() => {
+        const check = async () => {
+            try {
+                const res = await fetch('/system/pi-status/api');
+                const data = await res.json();
+                setPiOnline(data.online === true);
+            } catch {
+                setPiOnline(false);
+            }
+        };
+        check();
+        const interval = setInterval(check, 15000);
+        return () => clearInterval(interval);
     }, []);
 
     const timeStr = time.toLocaleTimeString('en-GB', { hour12: false });
@@ -328,7 +347,7 @@ export default function Dashboard({ stats, todayClasses, recentAttendance, weekl
 
     const todayRate = (() => {
         const total   = recentAttendance.length;
-        const present = recentAttendance.filter(r => r.status === 'present').length;
+        const present = recentAttendance.filter(r => r.status === 'present' || r.status === 'late').length;
         return total > 0 ? Math.round((present / total) * 100) : null;
     })();
 
@@ -357,8 +376,14 @@ export default function Dashboard({ stats, todayClasses, recentAttendance, weekl
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 20 }}>
                             <Cpu size={12} color="#6B7280" />
                             <span style={{ fontSize: 12, color: '#6B7280' }}>Pi</span>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669', boxShadow: '0 0 6px rgba(5,150,105,0.4)' }} />
-                            <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#6B7280' }}>online</span>
+                            <span style={{
+                                width: 6, height: 6, borderRadius: '50%',
+                                background: piOnline === null ? '#D1D5DB' : piOnline ? '#059669' : '#EF4444',
+                                boxShadow: piOnline ? '0 0 6px rgba(5,150,105,0.4)' : 'none',
+                            }} />
+                            <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#6B7280' }}>
+                                {piOnline === null ? 'checking…' : piOnline ? 'online' : 'offline'}
+                            </span>
                         </div>
 
                         {/* Live clock */}
@@ -481,7 +506,7 @@ export default function Dashboard({ stats, todayClasses, recentAttendance, weekl
                     </div>
 
                     {/* Camera feed */}
-                    <CameraFeed />
+                    <CameraFeed piUrl={piUrl} />
                 </div>
 
                 {/* ── Row 3: Weekly chart + quick actions ── */}

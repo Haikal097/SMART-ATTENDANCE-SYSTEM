@@ -7,7 +7,7 @@ import { type BreadcrumbItem } from '@/types';
 import {
     BookOpen, ChevronLeft, Plus, Trash2, AlertTriangle,
     CheckCircle, Calendar, Clock, RefreshCw, X, Zap,
-    CalendarDays, Flag,
+    CalendarDays,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ interface Props {
     otherSchedules: OtherSchedule[];
     conflicts: ConflictInfo[];
     generatedCount: number | null;
-    pendingHolidays: number;
+    canManage: boolean;
 }
 
 type DayOfWeek   = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday';
@@ -373,7 +373,7 @@ function GenerateModal({
                             );
                         })}
                         <p style={{ fontSize: 12, color: '#6B7280', margin: '10px 0 0', borderTop: '1px solid #E5E7EB', paddingTop: 8 }}>
-                            ~<strong>{estimated}</strong> sessions total · public holidays will be flagged for review
+                            ~<strong>{estimated}</strong> sessions total
                         </p>
                     </div>
 
@@ -399,7 +399,7 @@ function GenerateModal({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function SubjectTimetable({ subject, schedules, otherSchedules, conflicts, generatedCount, pendingHolidays }: Props) {
+export default function SubjectTimetable({ subject, schedules, otherSchedules, conflicts, generatedCount, canManage }: Props) {
     const [showAddModal, setShowAddModal]       = useState(false);
     const [showGenerateModal, setShowGenerateModal] = useState(false);
     const [generating, setGenerating]           = useState(false);
@@ -465,26 +465,28 @@ export default function SubjectTimetable({ subject, schedules, otherSchedules, c
                     </div>
 
                     <div style={{ display: 'flex', gap: 8 }}>
-                        {pendingHolidays > 0 && (
-                            <Link href={`/subjects/${subject.id}/holidays`} style={{ height: 36, padding: '0 14px', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', background: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
-                                <Flag size={13} />
-                                {pendingHolidays} holiday{pendingHolidays !== 1 ? 's' : ''} to review
-                            </Link>
+                        <Link href={`/subjects/${subject.id}`} className="tt-btn-ghost">
+                            <CalendarDays size={13} />
+                            View sessions
+                        </Link>
+                        {canManage && (
+                            <button onClick={() => setShowAddModal(true)} className="tt-btn-ghost">
+                                <Plus size={13} />
+                                Add schedule
+                            </button>
                         )}
-                        <button onClick={() => setShowAddModal(true)} className="tt-btn-ghost">
-                            <Plus size={13} />
-                            Add schedule
-                        </button>
-                        <button
-                            onClick={() => setShowGenerateModal(true)}
-                            disabled={!canGenerate}
-                            className="tt-btn-primary"
-                            style={{ opacity: canGenerate ? 1 : 0.4, cursor: canGenerate ? 'pointer' : 'not-allowed' }}
-                            title={!canGenerate ? 'Set semester dates and add at least one schedule first' : ''}
-                        >
-                            <Zap size={13} />
-                            Generate sessions
-                        </button>
+                        {canManage && (
+                            <button
+                                onClick={() => setShowGenerateModal(true)}
+                                disabled={!canGenerate}
+                                className="tt-btn-primary"
+                                style={{ opacity: canGenerate ? 1 : 0.4, cursor: canGenerate ? 'pointer' : 'not-allowed' }}
+                                title={!canGenerate ? 'Set semester dates and add at least one schedule first' : ''}
+                            >
+                                <Zap size={13} />
+                                Generate sessions
+                            </button>
+                        )}
                     </div>
                 </div>
 

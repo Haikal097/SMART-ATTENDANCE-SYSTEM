@@ -4,8 +4,8 @@ import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import {
-    BookOpen, Users, Clock, BarChart3, Plus, Edit,
-    ChevronLeft, Trash2, AlertTriangle, X, CheckCircle,
+    BookOpen, Users, Clock, BarChart3, Edit,
+    ChevronLeft, AlertTriangle, X, CheckCircle,
     Calendar, MapPin, UserMinus, UserPlus, Search, CalendarDays
 } from 'lucide-react';
 
@@ -35,8 +35,6 @@ interface Session {
     end_time: string;
     room: string | null;
     status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
-    is_holiday: boolean;
-    holiday_action: string | null;
     present: number;
     total: number;
 }
@@ -61,6 +59,7 @@ interface Subject {
 interface Props {
     subject: Subject;
     availableStudents: { id: number; name: string; student_id: string; email: string }[];
+    canManage: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -195,7 +194,7 @@ function RemoveStudentModal({ student, subjectId, onClose }: { student: Student;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function SubjectShow({ subject, availableStudents }: Props) {
+export default function SubjectShow({ subject, availableStudents, canManage }: Props) {
     const [activeTab, setActiveTab]         = useState<'students' | 'sessions'>('students');
     const [showEnroll, setShowEnroll]       = useState(false);
     const [removeTarget, setRemoveTarget]   = useState<Student | null>(null);
@@ -252,12 +251,14 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                             {subject.description && <p style={{ fontSize: 13, color: '#6B7280', margin: 0 }}>{subject.description}</p>}
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <Link href={`/subjects/${subject.id}/edit`} className="sh-btn-ghost"><Edit size={13} />Edit</Link>
-                        <Link href={`/subjects/${subject.id}/schedules`} className="sh-btn-primary">
-                            <CalendarDays size={13} />Manage timetable
-                        </Link>
-                    </div>
+                    {canManage && (
+                        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                            <Link href={`/subjects/${subject.id}/edit`} className="sh-btn-ghost"><Edit size={13} />Edit</Link>
+                            <Link href={`/subjects/${subject.id}/schedules`} className="sh-btn-primary">
+                                <CalendarDays size={13} />Manage timetable
+                            </Link>
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Stats ── */}
@@ -325,9 +326,11 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                 <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
                                 <input type="text" placeholder="Search enrolled students…" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="sh-input" style={{ paddingLeft: 32 }} />
                             </div>
-                            <button onClick={() => setShowEnroll(true)} className="sh-btn-primary" style={{ background: '#7C3AED', flexShrink: 0 }}>
-                                <UserPlus size={13} />Enroll students
-                            </button>
+                            {canManage && (
+                                <button onClick={() => setShowEnroll(true)} className="sh-btn-primary" style={{ background: '#7C3AED', flexShrink: 0 }}>
+                                    <UserPlus size={13} />Enroll students
+                                </button>
+                            )}
                         </div>
 
                         <table className="sh-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -338,18 +341,18 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                     <th>Email</th>
                                     <th>Status</th>
                                     <th>Enrolled</th>
-                                    <th style={{ width: 48 }} />
+                                    {canManage && <th style={{ width: 48 }} />}
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredStudents.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                                        <td colSpan={canManage ? 6 : 5} style={{ padding: '48px 20px', textAlign: 'center' }}>
                                             <Users size={36} style={{ color: '#E5E7EB', margin: '0 auto 12px', display: 'block' }} />
                                             <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: 0 }}>
                                                 {subject.students.length === 0 ? 'No students enrolled yet' : 'No students match your search'}
                                             </p>
-                                            {subject.students.length === 0 && (
+                                            {canManage && subject.students.length === 0 && (
                                                 <button onClick={() => setShowEnroll(true)} style={{ marginTop: 12, fontSize: 13, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                                                     Enroll your first student
                                                 </button>
@@ -378,15 +381,17 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                         <td style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'monospace' }}>
                                             {student.pivot?.enrolled_at ?? '—'}
                                         </td>
-                                        <td>
-                                            <button onClick={() => setRemoveTarget(student)} title="Remove from subject"
-                                                style={{ padding: 6, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 6, color: '#9CA3AF', display: 'flex', alignItems: 'center' }}
-                                                onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2'; e.currentTarget.style.color = '#DC2626'; }}
-                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF'; }}
-                                            >
-                                                <UserMinus size={15} />
-                                            </button>
-                                        </td>
+                                        {canManage && (
+                                            <td>
+                                                <button onClick={() => setRemoveTarget(student)} title="Remove from subject"
+                                                    style={{ padding: 6, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 6, color: '#9CA3AF', display: 'flex', alignItems: 'center' }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2'; e.currentTarget.style.color = '#DC2626'; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF'; }}
+                                                >
+                                                    <UserMinus size={15} />
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -421,19 +426,23 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                     <th>Room</th>
                                     <th>Attendance</th>
                                     <th>Status</th>
-                                    <th style={{ width: 140 }} />
+                                    {canManage && <th style={{ width: 140 }} />}
                                 </tr>
                             </thead>
                             <tbody>
                                 {subject.sessions.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} style={{ padding: '48px 20px', textAlign: 'center' }}>
+                                        <td colSpan={canManage ? 6 : 5} style={{ padding: '48px 20px', textAlign: 'center' }}>
                                             <Calendar size={36} style={{ color: '#E5E7EB', margin: '0 auto 12px', display: 'block' }} />
                                             <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: 0 }}>No sessions yet</p>
-                                            <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4, marginBottom: 12 }}>Create the first session for this subject</p>
-                                            <Link href={`/subjects/${subject.id}/schedules`} className="sh-btn-primary" style={{ display: 'inline-flex' }}>
-                                                <CalendarDays size={13} />Set up timetable
-                                            </Link>
+                                            {canManage && (
+                                                <>
+                                                    <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4, marginBottom: 12 }}>Create the first session for this subject</p>
+                                                    <Link href={`/subjects/${subject.id}/schedules`} className="sh-btn-primary" style={{ display: 'inline-flex' }}>
+                                                        <CalendarDays size={13} />Set up timetable
+                                                    </Link>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ) : subject.sessions.map((session) => {
@@ -447,11 +456,6 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                                     <span style={{ fontWeight: 500 }}>
                                                         {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </span>
-                                                    {session.is_holiday && (
-                                                        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
-                                                            Holiday
-                                                        </span>
-                                                    )}
                                                 </div>
                                             </td>
                                             <td style={{ fontSize: 12, color: '#6B7280', fontFamily: 'monospace' }}>
@@ -479,18 +483,20 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                                                     {ss.label}
                                                 </span>
                                             </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: 6 }}>
-                                                    <Link href={`/subjects/${subject.id}/sessions/${session.id}/attendance`}
-                                                        style={{ height: 30, padding: '0 12px', fontSize: 12, fontFamily: 'inherit', background: '#111827', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
-                                                        <CheckCircle size={12} />Attendance
-                                                    </Link>
-                                                    <Link href={`/subjects/${subject.id}/sessions/${session.id}/edit`}
-                                                        style={{ height: 30, padding: '0 10px', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 7, display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
-                                                        <Edit size={12} />
-                                                    </Link>
-                                                </div>
-                                            </td>
+                                            {canManage && (
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                        <Link href={`/subjects/${subject.id}/sessions/${session.id}/attendance`}
+                                                            style={{ height: 30, padding: '0 12px', fontSize: 12, fontFamily: 'inherit', background: '#111827', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
+                                                            <CheckCircle size={12} />Attendance
+                                                        </Link>
+                                                        <Link href={`/subjects/${subject.id}/sessions/${session.id}/edit`}
+                                                            style={{ height: 30, padding: '0 10px', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 7, display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+                                                            <Edit size={12} />
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                            )}
                                         </tr>
                                     );
                                 })}
@@ -500,8 +506,8 @@ export default function SubjectShow({ subject, availableStudents }: Props) {
                 )}
             </div>
 
-            {showEnroll && <EnrollModal subjectId={subject.id} available={availableStudents} onClose={() => setShowEnroll(false)} />}
-            {removeTarget && <RemoveStudentModal student={removeTarget} subjectId={subject.id} onClose={() => setRemoveTarget(null)} />}
+            {canManage && showEnroll && <EnrollModal subjectId={subject.id} available={availableStudents} onClose={() => setShowEnroll(false)} />}
+            {canManage && removeTarget && <RemoveStudentModal student={removeTarget} subjectId={subject.id} onClose={() => setRemoveTarget(null)} />}
         </AppLayout>
     );
 }

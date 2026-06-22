@@ -42,11 +42,6 @@ class StudentController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Class filter
-        if ($request->filled('class')) {
-            $query->where('class_id', $request->class);
-        }
-
         $students = $query->orderBy('name')->paginate(15)->withQueryString();
 
         $students->through(fn ($s) => [
@@ -55,7 +50,6 @@ class StudentController extends Controller
             'studentId'      => $s->student_id,
             'email'          => $s->email,
             'phone'          => $s->phone,
-            'class'          => $s->class_id ?? 'Unassigned',
             'enrollmentDate' => $s->enrollment_date,
             'status'         => $s->status ?? 'active',
             'attendanceRate' => (int) ($s->computed_rate ?? 0),
@@ -76,11 +70,7 @@ class StudentController extends Controller
 
         return Inertia::render('Students/Index', [
             'students' => $students,
-            'filters'  => $request->only(['search', 'status', 'class']),
-            'classes'  => Student::select('class_id')
-                ->distinct()
-                ->whereNotNull('class_id')
-                ->pluck('class_id'),
+            'filters'  => $request->only(['search', 'status']),
             'stats'    => [
                 'total'          => Student::count(),
                 'active'         => Student::where('status', 'active')->count(),
@@ -147,20 +137,57 @@ class StudentController extends Controller
      */
     public function show(Student $student)
     {
+        $attendances = $student->attendances()->with('session.subject')->get();
+        $totalSessions = $attendances->count();
+        $attended      = $attendances->whereIn('status', ['present', 'late'])->count();
+        $rate          = $totalSessions > 0 ? round(($attended / $totalSessions) * 100) : 0;
+
+        $recent = $student->attendances()
+            ->with('session.subject')
+            ->orderBy('created_at', 'desc')
+            ->take(20)
+            ->get()
+            ->map(fn ($a) => [
+                'id'          => $a->id,
+                'status'      => $a->status,
+                'date'        => $a->session?->date?->format('Y-m-d'),
+                'subject'     => $a->session?->subject?->name ?? '—',
+                'subject_code'=> $a->session?->subject?->code ?? '—',
+                'time'        => $a->session
+                    ? \App\Models\Session::BLOCKS[$a->session->start_block]['start']
+                      . '–' . \App\Models\Session::BLOCKS[$a->session->end_block]['end']
+                    : '—',
+                'checked_in_at' => $a->checked_in_at,
+            ]);
+
+        $subjects = $student->subjects()
+            ->select('subjects.id', 'subjects.code', 'subjects.name', 'subjects.status')
+            ->get()
+            ->map(fn ($s) => [
+                'id'     => $s->id,
+                'code'   => $s->code,
+                'name'   => $s->name,
+                'status' => $s->status,
+            ]);
+
+        $user = $student->user;
+
         return Inertia::render('Students/Show', [
             'student' => [
-                'id' => $student->id,
-                'name' => $student->name,
-                'studentId' => $student->student_id,
-                'email' => $student->email,
-                'phone' => $student->phone,
-                'class' => $student->class?->name,
-                'enrollmentDate' => $student->enrollment_date?->format('Y-m-d'),
-                'status' => $student->status,
-                'attendanceRate' => $student->attendance_rate,
-                'faceRegistered' => $student->face_registered,
-                'attendances' => $student->attendances()->latest()->take(10)->get(),
-            ]
+                'id'             => $student->id,
+                'name'           => $student->name,
+                'studentId'      => $student->student_id,
+                'email'          => $student->email,
+                'phone'          => $student->phone,
+                'enrollmentDate' => $student->enrollment_date ? \Carbon\Carbon::parse($student->enrollment_date)->format('Y-m-d') : null,
+                'status'         => $student->status ?? 'active',
+                'faceStatus'     => $user?->face_status ?? 'none',
+                'attendanceRate' => $rate,
+                'totalSessions'  => $totalSessions,
+                'attended'       => $attended,
+            ],
+            'subjects'          => $subjects,
+            'recentAttendance'  => $recent,
         ]);
     }
 
@@ -171,7 +198,6 @@ class StudentController extends Controller
     {
         return Inertia::render('Students/Edit', [
             'student' => $student,
-            'classes' => \App\Models\ClassRoom::select('id', 'name', 'code')->get()
         ]);
     }
 
@@ -181,11 +207,11 @@ class StudentController extends Controller
     public function update(Request $request, Student $student)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name'       => 'required|string|max:255',
             'student_id' => 'required|string|unique:students,student_id,' . $student->id,
-            'email' => 'required|email|unique:students,email,' . $student->id,
-            'phone' => 'nullable|string',
-            'class_id' => 'nullable|exists:classes,id',
+            'email'      => 'required|email|unique:students,email,' . $student->id,
+            'phone'  => 'nullable|string',
+            'status' => 'nullable|in:active,inactive,graduated,suspended',
         ]);
 
         $student->update($validated);
@@ -249,15 +275,49 @@ class StudentController extends Controller
     }
 
     /**
-     * Export students data.
+     * Export students data as CSV.
      */
     public function export(Request $request)
     {
-        // Generate and return CSV/Excel file
-        $students = Student::all();
-        
-        // Export logic here
-        
-        return response()->download($filename);
+        $students = Student::query()
+            ->selectRaw('
+                students.*,
+                (SELECT ROUND(SUM(status IN ("present","late")) / NULLIF(COUNT(*), 0) * 100)
+                 FROM attendances WHERE attendances.student_id = students.id) as computed_rate,
+                (SELECT COUNT(*) FROM attendances WHERE attendances.student_id = students.id) as total_sessions
+            ')
+            ->orderBy('name')
+            ->get();
+
+        $filename = 'students_' . now()->format('Ymd_His') . '.csv';
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($students) {
+            $out = fopen('php://output', 'w');
+
+            fputcsv($out, ['Name', 'Student ID', 'Email', 'Phone', 'Status', 'Enrollment Date', 'Face Registered', 'Attendance Rate (%)', 'Total Sessions']);
+
+            foreach ($students as $s) {
+                fputcsv($out, [
+                    $s->name,
+                    $s->student_id,
+                    $s->email,
+                    $s->phone ?? '',
+                    $s->status ?? 'active',
+                    $s->enrollment_date ?? '',
+                    $s->face_registered ? 'Yes' : 'No',
+                    (int) ($s->computed_rate ?? 0),
+                    (int) ($s->total_sessions ?? 0),
+                ]);
+            }
+
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

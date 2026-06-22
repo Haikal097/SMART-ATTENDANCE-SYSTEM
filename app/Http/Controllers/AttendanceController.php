@@ -14,8 +14,29 @@ class AttendanceController extends Controller
     /**
      * Show the attendance recording page for a session.
      */
+    private function authorise(Subject $subject): void
+    {
+        $user = auth()->user();
+
+        // Students cannot access this page at all
+        abort_if($user->role === 'student', 403, 'Access denied.');
+
+        // Lecturers can only manage subjects they are assigned to
+        if ($user->role === 'lecturer') {
+            $assigned = $subject->lecturers()->where('users.id', $user->id)->exists();
+            abort_if(! $assigned, 403, 'You are not assigned to this subject.');
+        }
+
+        // Admins pass through without further checks
+    }
+
     public function show(Subject $subject, Session $session)
     {
+        $this->authorise($subject);
+
+        // Ensure the session actually belongs to this subject
+        abort_if($session->subject_id !== $subject->id, 404);
+
         // Get all students enrolled in this subject
         $students = $subject->students()
             ->select('students.id', 'students.name', 'students.student_id', 'students.avatar_url')
@@ -61,6 +82,10 @@ class AttendanceController extends Controller
      */
     public function store(Request $request, Subject $subject, Session $session)
     {
+        $this->authorise($subject);
+
+        abort_if($session->subject_id !== $subject->id, 404);
+
         $request->validate([
             'records'              => 'required|array',
             'records.*.student_id' => 'required|integer|exists:students,id',
